@@ -28,6 +28,16 @@
             </intent-filter>
         </activity>
 
+        <!-- 通知使用权通道：读取微信/支付宝的支付结果通知（系统正规授权，设置里手动开启） -->
+        <service
+            android:name=".service.PaymentNotificationListener"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- 无障碍自动记账服务 -->
         <service
             android:name=".service.AutoRecordAccessibilityService"

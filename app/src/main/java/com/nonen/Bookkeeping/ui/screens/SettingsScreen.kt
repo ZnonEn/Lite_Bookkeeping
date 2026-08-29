@@ -71,6 +71,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     var statusMessage by mutableStateOf<String?>(null)
     var accessibilityEnabled by mutableStateOf(false)
         private set
+    var notificationAccessEnabled by mutableStateOf(false)
+        private set
 
     init {
         viewModelScope.launch {
@@ -87,6 +89,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun refreshAccessibility() {
         accessibilityEnabled = AccessibilityUtil.isServiceEnabled(container.appContext)
+        notificationAccessEnabled = androidx.core.app.NotificationManagerCompat
+            .getEnabledListenerPackages(container.appContext)
+            .contains(container.appContext.packageName)
     }
 
     fun updateAutoRecord(v: Boolean) {
@@ -244,6 +249,18 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                         onClick = { context.startActivity(Intent(SystemSettings.ACTION_ACCESSIBILITY_SETTINGS)) },
                         modifier = Modifier.padding(horizontal = 8.dp),
                     ) { Text("去开启无障碍服务") }
+                }
+                if (vm.accessibilityEnabled && !vm.notificationAccessEnabled) {
+                    Text(
+                        "微信/支付宝的支付页面对无障碍隐藏内容，建议同时开启「通知使用权」——支付完成后的系统通知会带金额，由它兜底记录",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    TextButton(
+                        onClick = { context.startActivity(Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) { Text("去开启通知使用权") }
                 }
             }
 
