@@ -49,9 +49,6 @@ class AutoRecordAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val e = event ?: return
         val pkg = e.packageName?.toString() ?: return
-        if (pkg in TARGET_PACKAGES) {
-            AutoRecordDebugStore.onEvent(pkg)
-        }
         // 事件对象在回调返回后会被系统回收，必须在同步代码里先取出所需数据
         val eventText = e.text.joinToString(" ") { it.toString() }.trim()
         val notificationText = extractNotificationText(e)
@@ -131,8 +128,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
             collectTexts(root, texts, 0)
         }
         // 支付完成页可能是独立弹窗而非当前活动窗口，遍历应用窗口兜底（只认微信/支付宝自己的窗口）
-        val visibleWindows = runCatching { windows }.getOrNull()
-        visibleWindows
+        runCatching { windows }.getOrNull()
             ?.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
             ?.forEach { w ->
                 val wpkg = w.root?.packageName?.toString()
@@ -143,26 +139,8 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         // 以窗口实际归属为准：事件可能由后台的微信触发，而前台早已切到别的应用，此时不扫
         val pkg = sourcePkg
         if (pkg == null || pkg !in TARGET_PACKAGES) return
-        if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) {
-            if (s.captureDebug) {
-                AutoRecordDebugStore.recordThrottled(
-                    pkg, "window", "已跳过：自动记账开关关闭或不在监听范围", emptyList(),
-                )
-            }
-            return
-        }
-        if (texts.isEmpty()) {
-            if (s.captureDebug) {
-                val visible = visibleWindows
-                    ?.mapNotNull { it.root?.packageName?.toString() }
-                    ?.distinct()
-                    ?.joinToString("、") { AutoRecordDebugStore.appNameOf(it) }
-                AutoRecordDebugStore.recordThrottled(
-                    pkg, "window", "未抓到任何文本节点（对方对无障碍隐藏了内容；可见窗口：${visible ?: "无"}）", emptyList(),
-                )
-            }
-            return
-        }
+        if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) return
+        if (texts.isEmpty()) return
         AutoRecordPipeline.handleWindowTexts(applicationContext, pkg, texts, s)
     }
 
