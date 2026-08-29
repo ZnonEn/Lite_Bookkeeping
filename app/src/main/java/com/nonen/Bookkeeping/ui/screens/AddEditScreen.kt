@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -187,6 +188,9 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            // 状态栏/导航栏/键盘 insets 全部让位：头部不顶进状态栏，
+            // 键盘弹出时视口收缩，配合 verticalScroll 可滚到被挡住的字段
+            .safeDrawingPadding()
             .verticalScroll(rememberScrollState()),
     ) {
         // 头部：返回 + 标题 + 日期胶囊
