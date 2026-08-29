@@ -172,7 +172,14 @@ class AutoRecordAccessibilityService : AccessibilityService() {
                 "package" to pkg,
                 "text" to rawText.take(300),
             ),
-            hash = HashUtil.transactionHash(now, signed, parsed.counterparty, "auto"),
+            // 时间按 10 分钟取桶：通知与窗口两条路径先后抓到同一笔支付时哈希一致，
+            // 由数据库唯一哈希兜底去重，避免同一笔记两次
+            hash = HashUtil.transactionHash(
+                now / AUTO_HASH_BUCKET_MS * AUTO_HASH_BUCKET_MS,
+                signed,
+                parsed.counterparty,
+                "auto",
+            ),
         )
         val inserted = container.transactionRepository.insertIfNew(entity)
         if (inserted && notify) {
@@ -207,6 +214,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         private const val NOTIFICATION_ID = 1001
         private const val WINDOW_SCAN_DELAY_MS = 600L
         private const val SIGNATURE_TTL_MS = 15 * 60 * 1000L
+        private const val AUTO_HASH_BUCKET_MS = 10 * 60 * 1000L
         private const val MAX_NODE_DEPTH = 24
         private const val MAX_NODE_TEXTS = 300
     }

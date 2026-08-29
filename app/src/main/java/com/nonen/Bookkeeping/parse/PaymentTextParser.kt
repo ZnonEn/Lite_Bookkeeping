@@ -65,35 +65,42 @@ object PaymentTextParser {
 }
 
 /**
- * 微信/支付宝「账单详情」页面的启发式抓取。
- * 必须同时出现：明确的方向锚点（付款金额 / 退款金额等）+ 交易成功状态，否则放弃记录。
+ * 微信/支付宝支付完成页与账单详情页的启发式抓取。
+ * 方向判定：金额标签锚点（付款金额/退款金额…）优先，其次是成功提示词——
+ * 支付完成页通常没有「付款金额」标签，只有「支付成功/付款成功 + ¥金额」。
+ * 必须同时具备：可判定的方向 + 金额，否则放弃（宁可不记录，也不记错）。
  */
 object WindowCaptureAnalyzer {
 
     private val AMOUNT_WITH_LABEL =
         Regex("""(?:付款金额|支付金额|退款金额|收款金额|入账金额|转账金额)[^\d¥￥]{0,6}[¥￥]?\s*([0-9]+(?:\.[0-9]{1,2})?)""")
-    private val STANDALONE_AMOUNT = Regex("""^[¥￥]\s*([0-9]+(?:\.[0-9]{1,2})?)$""")
+    private val STANDALONE_AMOUNT = Regex("""^[¥￥]?\s*([0-9]+(?:\.[0-9]{1,2})?)$""")
+    private val AMOUNT_ANYWHERE = Regex("""[¥￥]\s*([0-9]+(?:\.[0-9]{1,2})?)""")
     private val COUNTERPARTY = Regex("""(?:收款方|付款方|对方账户|对方名称|商户)[:：\s]*(\S{1,25})""")
 
     private val EXPENSE_ANCHORS = listOf("付款金额", "支付金额", "转账金额")
     private val INCOME_ANCHORS = listOf("退款金额", "收款金额", "入账金额")
-    private val SUCCESS_WORDS = listOf(
-        "已支付", "支付成功", "付款成功", "已转账", "交易成功", "已收钱", "已存入", "已到账", "退款成功",
-    )
+    private val EXPENSE_SUCCESS = listOf("支付成功", "付款成功", "已支付", "已付款", "已转账", "扣款成功", "付款时间")
+    private val INCOME_SUCCESS = listOf("已收钱", "已收款", "收款成功", "已存入", "已到账", "到账成功", "退款成功", "收款时间")
 
     fun analyze(texts: List<String>): ParsedPayment? {
         if (texts.isEmpty()) return null
         val joined = texts.joinToString(" ") { it.trim() }.replace('\n', ' ')
         val hasExpenseAnchor = EXPENSE_ANCHORS.any { joined.contains(it) }
         val hasIncomeAnchor = INCOME_ANCHORS.any { joined.contains(it) }
-        if (hasExpenseAnchor == hasIncomeAnchor) return null // 两者皆无或同时出现，方向不明
-        if (SUCCESS_WORDS.none { joined.contains(it) }) return null
+        if (hasExpenseAnchor && hasIncomeAnchor) return null // 同时出现，方向不明
+
+        val hasExpenseWord = EXPENSE_SUCCESS.any { joined.contains(it) }
+        val hasIncomeWord = INCOME_SUCCESS.any { joined.contains(it) }
+        // 既无金额标签锚点、也无成功提示词的页面一律不抓，避免在普通界面误记
+        if (!hasExpenseAnchor && !hasIncomeAnchor && hasExpenseWord == hasIncomeWord) return null
 
         val amount = texts.firstNotNullOfOrNull { AMOUNT_WITH_LABEL.find(it) }
             ?.groupValues?.get(1)?.toDoubleOrNull()
+            ?: AMOUNT_WITH_LABEL.find(joined)?.groupValues?.get(1)?.toDoubleOrNull()
             ?: texts.firstNotNullOfOrNull { STANDALONE_AMOUNT.find(it.trim()) }
                 ?.groupValues?.get(1)?.toDoubleOrNull()
-            ?: AMOUNT_WITH_LABEL.find(joined)?.groupValues?.get(1)?.toDoubleOrNull()
+            ?: AMOUNT_ANYWHERE.find(joined)?.groupValues?.get(1)?.toDoubleOrNull()
             ?: return null
         if (amount <= 0.0 || amount > 1_000_000.0) return null
 
@@ -106,7 +113,11 @@ object WindowCaptureAnalyzer {
         }
         return ParsedPayment(
             amount = amount,
-            isIncome = hasIncomeAnchor,
+            isIncome = when {
+                hasIncomeAnchor -> true
+                hasExpenseAnchor -> false
+                else -> hasIncomeWord
+            },
             counterparty = counterparty,
             description = joined.take(80),
         )
