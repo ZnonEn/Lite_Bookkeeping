@@ -60,6 +60,7 @@ import com.nonen.Bookkeeping.ui.motion.rememberPressScale
 import androidx.compose.ui.window.Dialog
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -339,7 +340,7 @@ private fun WeekOverviewCard(days: List<WeekDayBar>) {
                 )
             }
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth().height(78.dp)) {
+            Row(Modifier.fillMaxWidth().height(92.dp)) {
                 days.forEach { d ->
                     DayBarColumn(d, maxV, modifier = Modifier.weight(1f))
                 }
@@ -356,12 +357,12 @@ private fun DayBarColumn(d: WeekDayBar, maxV: Double, modifier: Modifier = Modif
         verticalArrangement = Arrangement.Bottom,
     ) {
         Row(
-            Modifier.height(54.dp),
+            Modifier.height(68.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            MiniBar(d.income, maxV, IncomeColor)
-            MiniBar(d.expense, maxV, ExpenseColor)
+            BarWithValue(d.income, maxV, IncomeColor)
+            BarWithValue(d.expense, maxV, ExpenseColor)
         }
         Spacer(Modifier.height(6.dp))
         Text(
@@ -373,16 +374,37 @@ private fun DayBarColumn(d: WeekDayBar, maxV: Double, modifier: Modifier = Modif
 }
 
 @Composable
-private fun MiniBar(v: Double, maxV: Double, color: Color) {
-    // 无数据时留 4dp 半透明残柱，标示当天有无发生额
-    val h = if (v <= 0) 4.dp else (8 + 44 * (v / maxV)).dp
-    Box(
-        Modifier
-            .width(6.dp)
-            .height(h)
-            .clip(RoundedCornerShape(3.dp))
-            .background(if (v <= 0) color.copy(alpha = 0.35f) else color),
-    )
+private fun BarWithValue(v: Double, maxV: Double, color: Color) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom,
+    ) {
+        if (v > 0) {
+            Text(
+                text = compactAmount(v),
+                fontSize = 9.sp,
+                color = color,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(2.dp))
+        }
+        val h = if (v <= 0) 4.dp else (8 + 44 * (v / maxV)).dp
+        Box(
+            Modifier
+                .width(6.dp)
+                .height(h)
+                .clip(RoundedCornerShape(3.dp))
+                .background(if (v <= 0) color.copy(alpha = 0.35f) else color),
+        )
+    }
+}
+
+/** 迷你柱数值：尽量短，两位小数以内（125 / 10.9 / 1.2万） */
+private fun compactAmount(v: Double): String = when {
+    v >= 10000 -> String.format(Locale.US, "%.1f万", v / 10000)
+    v >= 100 -> String.format(Locale.US, "%.0f", v)
+    v >= 10 -> String.format(Locale.US, "%.1f", v).trimEnd('0').trimEnd('.')
+    else -> String.format(Locale.US, "%.2f", v).trimEnd('0').trimEnd('.')
 }
 
 /** 月份选择日历：年份可翻页，点选月份直接跳转 */
