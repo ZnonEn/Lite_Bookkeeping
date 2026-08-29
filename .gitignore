@@ -1,0 +1,20 @@
+# Gradle
+*.iml
+.gradle
+/build
+
+# 本地环境配置（含 SDK 路径，不入库）
+/local.properties
+
+# IDE
+.idea/
+.DS_Store
+
+# Android 构建产物
+/captures
+.externalNativeBuild
+.cxx
+.kotlin
+
+# 本地工具
+.codegraph/
