@@ -81,9 +81,13 @@ object WindowCaptureAnalyzer {
     private val EXPENSE_ANCHORS = listOf("付款金额", "支付金额", "转账金额")
     private val INCOME_ANCHORS = listOf("退款金额", "收款金额", "入账金额")
     private val EXPENSE_SUCCESS = listOf("支付成功", "付款成功", "已支付", "已付款", "已转账", "转账成功", "扣款成功", "付款时间")
-    private val INCOME_SUCCESS = listOf("已收钱", "已收款", "收款成功", "已存入", "已到账", "到账成功", "退款成功", "收款时间")
-    // 聊天内转账发出后，成功页/聊天气泡上显示「待XX确认收款」——钱已付出、对方未领
-    private val EXPENSE_PATTERNS = listOf(Regex("""待.{0,8}?确认收款"""))
+    private val INCOME_SUCCESS = listOf(
+        "已收钱", "已收款", "收款成功", "已存入", "已到账", "到账成功", "退款成功", "收款时间",
+        "确认收款", "立即收款", "请收款",
+    )
+    // 聊天内转账发出后，发送方页面/气泡显示「待<收款人名>确认收款」——钱已付出、对方未领。
+    // 收款方自己的页面写「待确认收款」（无人名），因此要求中间有名字才当作支出证据
+    private val EXPENSE_PATTERNS = listOf(Regex("""待.{1,8}?确认收款"""))
 
     fun analyze(texts: List<String>): ParsedPayment? = analyzeDetailed(texts).first
 
@@ -95,9 +99,12 @@ object WindowCaptureAnalyzer {
         val hasIncomeAnchor = INCOME_ANCHORS.any { joined.contains(it) }
         if (hasExpenseAnchor && hasIncomeAnchor) return null to "方向冲突：支出与收入金额标签同时出现"
 
+        // 「待XX确认收款」本身包含「确认收款」，先把它从文本中剔除再匹配收入词，
+        // 避免发送方页面同时命中支出与收入证据
+        val incomeText = EXPENSE_PATTERNS.fold(joined) { acc, r -> r.replace(acc, " ") }
         val hasExpenseWord = EXPENSE_SUCCESS.any { joined.contains(it) } ||
             EXPENSE_PATTERNS.any { it.containsMatchIn(joined) }
-        val hasIncomeWord = INCOME_SUCCESS.any { joined.contains(it) }
+        val hasIncomeWord = INCOME_SUCCESS.any { incomeText.contains(it) }
         // 既无金额标签锚点、也无成功提示词的页面一律不抓，避免在普通界面误记
         if (!hasExpenseAnchor && !hasIncomeAnchor && hasExpenseWord == hasIncomeWord) {
             return null to if (hasExpenseWord) "方向冲突：支出与收入提示词同时出现"

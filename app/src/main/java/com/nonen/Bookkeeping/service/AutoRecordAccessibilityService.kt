@@ -24,6 +24,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 
 /**
@@ -38,7 +39,23 @@ class AutoRecordAccessibilityService : AccessibilityService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val recentSignatures = HashMap<String, Long>()
-    private var scanRunnable: Runnable? = null
+    private val scanScheduled = AtomicBoolean(false)
+
+    /**
+     * 节流式扫描：窗口期内的第一个事件触发一次扫描，期间的后续事件忽略。
+     * 旧实现是「每次事件都取消重排」的防抖——微信页面持续触发事件会把扫描
+     * 无限期推迟，导致支付成功页从未被扫描过。
+     */
+    private fun scheduleWindowScan(delayMs: Long) {
+        if (!scanScheduled.compareAndSet(false, true)) return
+        handler.postDelayed({
+            scanScheduled.set(false)
+            scope.launch {
+                val s = settings() ?: return@launch
+                scanWindow(s)
+            }
+        }, delayMs)
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -82,14 +99,14 @@ class AutoRecordAccessibilityService : AccessibilityService() {
                     scope.launch { handleTextCapture(pkg, notificationText, "notification") }
                 }
                 // 新窗口（支付完成页通常是新页面/弹窗）：尽快扫一次
-                scheduleWindowScan(pkg, WINDOW_SCAN_FAST_MS)
+                scheduleWindowScan(WINDOW_SCAN_FAST_MS)
             }
 
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
                 if (!notificationText.isNullOrBlank()) {
                     scope.launch { handleTextCapture(pkg, notificationText, "notification") }
                 }
-                scheduleWindowScan(pkg, WINDOW_SCAN_DELAY_MS)
+                scheduleWindowScan(WINDOW_SCAN_DELAY_MS)
             }
         }
     }
@@ -124,34 +141,39 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         parsed?.let { record(it, pkg, origin, text, s.notifyOnRecord) }
     }
 
-    private fun scheduleWindowScan(pkg: String, delayMs: Long) {
-        scanRunnable?.let { handler.removeCallbacks(it) }
-        val runnable = Runnable {
-            scope.launch {
-                val s = settings() ?: return@launch
-                if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) {
-                    if (s.captureDebug) {
-                        AutoRecordDebugStore.recordThrottled(
-                            pkg, "window", "已跳过：自动记账开关关闭或不在监听范围", emptyList(),
-                        )
-                    }
-                    return@launch
-                }
-                scanWindow(pkg, s)
-            }
-        }
-        scanRunnable = runnable
-        handler.postDelayed(runnable, delayMs)
-    }
-
-    private suspend fun scanWindow(pkg: String, s: SettingsSnapshot) {
+    private suspend fun scanWindow(s: SettingsSnapshot) {
         val texts = ArrayList<String>(64)
-        rootInActiveWindow?.let { collectTexts(it, texts, 0) }
-        // 支付完成页可能是独立弹窗而非当前活动窗口，遍历应用窗口兜底
+        var sourcePkg: String? = rootInActiveWindow?.packageName?.toString()
+        rootInActiveWindow?.let { root ->
+            sourcePkg = root.packageName?.toString()
+            collectTexts(root, texts, 0)
+        }
+        // 支付完成页可能是独立弹窗而非当前活动窗口，遍历应用窗口兜底（只认微信/支付宝自己的窗口）
         runCatching { windows }.getOrNull()
             ?.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-            ?.forEach { w -> w.root?.let { root -> collectTexts(root, texts, 0) } }
-        if (texts.isEmpty()) return
+            ?.forEach { w ->
+                val wpkg = w.root?.packageName?.toString()
+                if (wpkg != null && wpkg in TARGET_PACKAGES && wpkg == sourcePkg) {
+                    w.root?.let { root -> collectTexts(root, texts, 0) }
+                }
+            }
+        // 以窗口实际归属为准：事件可能由后台的微信触发，而前台早已切到别的应用，此时不扫
+        val pkg = sourcePkg
+        if (pkg == null || pkg !in TARGET_PACKAGES) return
+        if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) {
+            if (s.captureDebug) {
+                AutoRecordDebugStore.recordThrottled(
+                    pkg, "window", "已跳过：自动记账开关关闭或不在监听范围", emptyList(),
+                )
+            }
+            return
+        }
+        if (texts.isEmpty()) {
+            if (s.captureDebug) {
+                AutoRecordDebugStore.recordThrottled(pkg, "window", "未抓到任何文本节点（窗口内容不可用）", emptyList())
+            }
+            return
+        }
         val (parsed, reason) = WindowCaptureAnalyzer.analyzeDetailed(texts)
         if (parsed == null) {
             if (s.captureDebug) {

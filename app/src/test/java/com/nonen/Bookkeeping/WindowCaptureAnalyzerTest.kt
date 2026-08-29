@@ -58,11 +58,19 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
-    fun `转账气泡待确认收款也可作为支出证据`() {
-        val p = WindowCaptureAnalyzer.analyze(listOf("微信转账", "¥0.01", "待确认收款"))
+    fun `转账气泡待对方确认收款识别为支出`() {
+        val p = WindowCaptureAnalyzer.analyze(listOf("微信转账", "¥0.01", "待对方确认收款"))
         assertNotNull(p)
         assertEquals(0.01, p!!.amount, 0.001)
         assertEquals(false, p.isIncome)
+    }
+
+    @Test
+    fun `转账收款确认页识别为收入`() {
+        val p = WindowCaptureAnalyzer.analyze(listOf("小号", "¥0.01", "待确认收款", "立即收款", "退还"))
+        assertNotNull(p)
+        assertEquals(0.01, p!!.amount, 0.001)
+        assertEquals(true, p.isIncome)
     }
 
     @Test
