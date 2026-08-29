@@ -203,6 +203,7 @@ private fun MainTab(
     val (source, scale) = rememberPressScale(0.94f)
     Box(
         modifier = modifier
+            .fillMaxHeight()
             .then(scale)
             .clip(RoundedCornerShape(12.dp))
             .clickable(interactionSource = source, indication = null, onClick = onClick),

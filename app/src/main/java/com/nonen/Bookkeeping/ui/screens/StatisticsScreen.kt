@@ -357,19 +357,15 @@ fun StatisticsScreen(vm: StatsViewModel) {
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier.weight(1f).clip(RoundedCornerShape(14.dp)),
-                ) {
-                    AnimatedSegmented(
-                        options = StatsPeriod.entries.map { it.label },
-                        selectedIndex = StatsPeriod.entries.indexOf(vm.period),
-                        onSelected = { idx ->
-                            val p = StatsPeriod.entries[idx]
-                            if (p == StatsPeriod.CUSTOM) vm.requestCustom() else vm.updatePeriod(p)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                AnimatedSegmented(
+                    options = StatsPeriod.entries.map { it.label },
+                    selectedIndex = StatsPeriod.entries.indexOf(vm.period),
+                    onSelected = { idx ->
+                        val p = StatsPeriod.entries[idx]
+                        if (p == StatsPeriod.CUSTOM) vm.requestCustom() else vm.updatePeriod(p)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
                 IconButton(onClick = { vm.requestCustom() }) {
                     Icon(Icons.Default.DateRange, contentDescription = "自定义日期范围")
                 }
