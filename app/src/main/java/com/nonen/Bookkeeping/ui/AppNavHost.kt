@@ -1,5 +1,10 @@
 package com.nonen.Bookkeeping.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
@@ -7,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,23 +21,16 @@ import androidx.navigation.navArgument
 import com.nonen.Bookkeeping.BookkeepingApp
 import com.nonen.Bookkeeping.ui.screens.AddEditScreen
 import com.nonen.Bookkeeping.ui.screens.AddEditViewModel
-import com.nonen.Bookkeeping.ui.screens.HomeScreen
-import com.nonen.Bookkeeping.ui.screens.HomeViewModel
+import com.nonen.Bookkeeping.ui.screens.MainScreen
 import com.nonen.Bookkeeping.ui.screens.RulesScreen
 import com.nonen.Bookkeeping.ui.screens.RulesViewModel
 import com.nonen.Bookkeeping.ui.screens.SearchScreen
 import com.nonen.Bookkeeping.ui.screens.SearchViewModel
-import com.nonen.Bookkeeping.ui.screens.SettingsScreen
-import com.nonen.Bookkeeping.ui.screens.SettingsViewModel
-import com.nonen.Bookkeeping.ui.screens.StatsViewModel
-import com.nonen.Bookkeeping.ui.screens.StatisticsScreen
 
 object Routes {
-    const val HOME = "home"
+    const val MAIN = "main"
     const val ADD_EDIT = "add/{txId}"
     const val SEARCH = "search"
-    const val STATS = "stats"
-    const val SETTINGS = "settings"
     const val RULES = "rules"
 
     fun add(txId: Long) = "add/$txId"
@@ -42,27 +41,38 @@ inline fun <reified VM : ViewModel> vmFactory(crossinline create: () -> VM): Vie
         initializer { create() }
     }
 
+/** iOS 风格推入/推出过渡：新页整宽从右滑入，旧页退到 -1/3 宽；弹出相反（参照墨麒麟） */
+private const val NAV_ANIM_MS = 280
+
 @Composable
 fun AppNavHost() {
     val container = (LocalContext.current.applicationContext as BookkeepingApp).container
     val nav = rememberNavController()
 
-    NavHost(navController = nav, startDestination = Routes.HOME) {
-        composable(Routes.HOME) {
-            val vm: HomeViewModel = viewModel(factory = vmFactory { HomeViewModel(container.transactionRepository) })
-            HomeScreen(
-                vm = vm,
+    NavHost(
+        navController = nav,
+        startDestination = Routes.MAIN,
+        enterTransition = {
+            fadeIn(tween(NAV_ANIM_MS)) + slideInHorizontally(tween(NAV_ANIM_MS)) { it }
+        },
+        exitTransition = {
+            fadeOut(tween(NAV_ANIM_MS)) + slideOutHorizontally(tween(NAV_ANIM_MS)) { -it / 3 }
+        },
+        popEnterTransition = {
+            fadeIn(tween(NAV_ANIM_MS)) + slideInHorizontally(tween(NAV_ANIM_MS)) { -it / 3 }
+        },
+        popExitTransition = {
+            fadeOut(tween(NAV_ANIM_MS)) + slideOutHorizontally(tween(NAV_ANIM_MS)) { it }
+        },
+    ) {
+        composable(Routes.MAIN) {
+            MainScreen(
+                container = container,
                 onAdd = { nav.navigate(Routes.add(0L)) },
                 onEdit = { nav.navigate(Routes.add(it)) },
-                onSearch = { nav.navigate(Routes.SEARCH) },
-                onStats = { nav.navigate(Routes.STATS) },
-                onSettings = { nav.navigate(Routes.SETTINGS) },
+                onSearch = { nav.navigateSingleTop(Routes.SEARCH) },
+                onRules = { nav.navigateSingleTop(Routes.RULES) },
             )
-        }
-
-        composable(Routes.STATS) {
-            val vm: StatsViewModel = viewModel(factory = vmFactory { StatsViewModel(container.transactionRepository) })
-            StatisticsScreen(vm = vm)
         }
 
         composable(
@@ -82,14 +92,14 @@ fun AppNavHost() {
             SearchScreen(vm = vm, onBack = { nav.popBackStack() }, onEdit = { nav.navigate(Routes.add(it)) })
         }
 
-        composable(Routes.SETTINGS) {
-            val vm: SettingsViewModel = viewModel(factory = vmFactory { SettingsViewModel(container) })
-            SettingsScreen(vm = vm, onRules = { nav.navigate(Routes.RULES) }, onBack = { nav.popBackStack() })
-        }
-
         composable(Routes.RULES) {
             val vm: RulesViewModel = viewModel(factory = vmFactory { RulesViewModel(container.ruleRepository) })
             RulesScreen(vm = vm, onBack = { nav.popBackStack() })
         }
     }
+}
+
+/** 相同目的地不重复入栈，避免反复点击搜索/规则堆出多层页面 */
+private fun NavHostController.navigateSingleTop(route: String) {
+    navigate(route) { launchSingleTop = true }
 }

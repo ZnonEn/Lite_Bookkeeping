@@ -335,13 +335,13 @@ fun StatisticsScreen(vm: StatsViewModel) {
         ) datePickTarget = 0
     }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-        ) {
+    // 统计页作为 MainScreen Pager 的一页，直接输出滚动内容（底栏由 MainScreen 提供）
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState()),
+    ) {
             Text(
                 "统计",
                 style = MaterialTheme.typography.titleMedium,
@@ -540,10 +540,7 @@ fun StatisticsScreen(vm: StatsViewModel) {
                         RankCard(c, color = ChartColors[index % ChartColors.size])
                     }
                 }
-                Spacer(Modifier.height(24.dp))
-            }
-        }
-    }
+                Spacer(Modifier.height(96.dp))}
 
     datePickTarget?.let { target ->
         val initial = if (target == 0) vm.customStart else vm.customEnd
@@ -566,6 +563,7 @@ fun StatisticsScreen(vm: StatsViewModel) {
             dismissButton = { TextButton(onClick = { datePickTarget = null }) { Text("取消") } },
         ) { DatePicker(state = state) }
     }
+}
 }
 
 private fun typeNounOf(vm: StatsViewModel) = if (vm.isIncome) "收入" else "支出"
