@@ -53,21 +53,23 @@ fun AppNavHost() {
     NavHost(
         navController = nav,
         startDestination = Routes.MAIN,
+        // 滑动页面保持完全不透明（iOS 推入式）：任何时刻进出两页都铺满整屏，
+        // 半透明淡入/淡出会让底层窗口背景透出造成白闪
         enterTransition = {
             if (reduced) fadeIn(tween(150))
-            else fadeIn(motionSpring()) + slideInHorizontally(motionSpring()) { it }
+            else slideInHorizontally(motionSpring()) { it }
         },
         exitTransition = {
             if (reduced) fadeOut(tween(150))
-            else fadeOut(motionSpring()) + slideOutHorizontally(motionSpring()) { -it / 3 }
+            else slideOutHorizontally(motionSpring()) { -it / 3 }
         },
         popEnterTransition = {
             if (reduced) fadeIn(tween(150))
-            else fadeIn(motionSpring()) + slideInHorizontally(motionSpring()) { -it / 3 }
+            else slideInHorizontally(motionSpring()) { -it / 3 }
         },
         popExitTransition = {
             if (reduced) fadeOut(tween(150))
-            else fadeOut(motionSpring()) + slideOutHorizontally(motionSpring()) { it }
+            else slideOutHorizontally(motionSpring()) { it }
         },
     ) {
         composable(Routes.MAIN) {
