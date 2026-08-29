@@ -85,18 +85,24 @@ object WindowCaptureAnalyzer {
     // 聊天内转账发出后，成功页/聊天气泡上显示「待XX确认收款」——钱已付出、对方未领
     private val EXPENSE_PATTERNS = listOf(Regex("""待.{0,8}?确认收款"""))
 
-    fun analyze(texts: List<String>): ParsedPayment? {
-        if (texts.isEmpty()) return null
+    fun analyze(texts: List<String>): ParsedPayment? = analyzeDetailed(texts).first
+
+    /** 解析结果 + 失败原因（原因供抓取调试面板展示） */
+    fun analyzeDetailed(texts: List<String>): Pair<ParsedPayment?, String> {
+        if (texts.isEmpty()) return null to "页面无文本"
         val joined = texts.joinToString(" ") { it.trim() }.replace('\n', ' ')
         val hasExpenseAnchor = EXPENSE_ANCHORS.any { joined.contains(it) }
         val hasIncomeAnchor = INCOME_ANCHORS.any { joined.contains(it) }
-        if (hasExpenseAnchor && hasIncomeAnchor) return null // 同时出现，方向不明
+        if (hasExpenseAnchor && hasIncomeAnchor) return null to "方向冲突：支出与收入金额标签同时出现"
 
         val hasExpenseWord = EXPENSE_SUCCESS.any { joined.contains(it) } ||
             EXPENSE_PATTERNS.any { it.containsMatchIn(joined) }
         val hasIncomeWord = INCOME_SUCCESS.any { joined.contains(it) }
         // 既无金额标签锚点、也无成功提示词的页面一律不抓，避免在普通界面误记
-        if (!hasExpenseAnchor && !hasIncomeAnchor && hasExpenseWord == hasIncomeWord) return null
+        if (!hasExpenseAnchor && !hasIncomeAnchor && hasExpenseWord == hasIncomeWord) {
+            return null to if (hasExpenseWord) "方向冲突：支出与收入提示词同时出现"
+            else "未发现方向证据（无金额标签/成功提示词）"
+        }
 
         val amount = texts.firstNotNullOfOrNull { AMOUNT_WITH_LABEL.find(it) }
             ?.groupValues?.get(1)?.toDoubleOrNull()
@@ -104,8 +110,8 @@ object WindowCaptureAnalyzer {
             ?: texts.firstNotNullOfOrNull { STANDALONE_AMOUNT.find(it.trim()) }
                 ?.groupValues?.get(1)?.toDoubleOrNull()
             ?: AMOUNT_ANYWHERE.find(joined)?.groupValues?.get(1)?.toDoubleOrNull()
-            ?: return null
-        if (amount <= 0.0 || amount > 1_000_000.0) return null
+            ?: return null to "未发现金额"
+        if (amount <= 0.0 || amount > 1_000_000.0) return null to "金额超出可记录范围"
 
         val counterparty = COUNTERPARTY.find(joined)?.groupValues?.get(1)?.let { raw ->
             val v = raw.trim()
@@ -123,6 +129,6 @@ object WindowCaptureAnalyzer {
             },
             counterparty = counterparty,
             description = joined.take(80),
-        )
+        ) to "解析成功"
     }
 }

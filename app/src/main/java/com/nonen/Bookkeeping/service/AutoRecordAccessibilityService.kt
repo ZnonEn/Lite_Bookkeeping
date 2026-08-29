@@ -13,6 +13,7 @@ import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.HashUtil
 import com.nonen.Bookkeeping.core.JsonUtil
 import com.nonen.Bookkeeping.data.db.TransactionEntity
+import com.nonen.Bookkeeping.data.prefs.Packages
 import com.nonen.Bookkeeping.data.prefs.SettingsSnapshot
 import com.nonen.Bookkeeping.parse.ParsedPayment
 import com.nonen.Bookkeeping.parse.PaymentTextParser
@@ -61,6 +62,9 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         val e = event ?: return
         val pkg = e.packageName?.toString() ?: return
         val type = e.eventType
+        if (pkg in TARGET_PACKAGES) {
+            AutoRecordDebugStore.onEvent(pkg)
+        }
         // 事件对象在回调返回后会被系统回收，必须在同步代码里先取出所需数据
         val eventText = e.text.joinToString(" ") { it.toString() }.trim()
         val notificationText = extractNotificationText(e)
@@ -108,8 +112,16 @@ class AutoRecordAccessibilityService : AccessibilityService() {
     private suspend fun handleTextCapture(pkg: String, text: String, origin: String) {
         val s = settings() ?: return
         if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) return
-        val parsed = PaymentTextParser.parse(text) ?: return
-        record(parsed, pkg, origin, text, s.notifyOnRecord)
+        val parsed = PaymentTextParser.parse(text)
+        if (s.captureDebug) {
+            AutoRecordDebugStore.record(
+                pkg,
+                origin,
+                if (parsed != null) "通知解析成功（金额 ¥${parsed.amount}）" else "通知文本未解析出交易",
+                listOf(text.take(60)),
+            )
+        }
+        parsed?.let { record(it, pkg, origin, text, s.notifyOnRecord) }
     }
 
     private fun scheduleWindowScan(pkg: String, delayMs: Long) {
@@ -117,15 +129,22 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         val runnable = Runnable {
             scope.launch {
                 val s = settings() ?: return@launch
-                if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) return@launch
-                scanWindow(pkg, s.notifyOnRecord)
+                if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) {
+                    if (s.captureDebug) {
+                        AutoRecordDebugStore.recordThrottled(
+                            pkg, "window", "已跳过：自动记账开关关闭或不在监听范围", emptyList(),
+                        )
+                    }
+                    return@launch
+                }
+                scanWindow(pkg, s)
             }
         }
         scanRunnable = runnable
         handler.postDelayed(runnable, delayMs)
     }
 
-    private suspend fun scanWindow(pkg: String, notify: Boolean) {
+    private suspend fun scanWindow(pkg: String, s: SettingsSnapshot) {
         val texts = ArrayList<String>(64)
         rootInActiveWindow?.let { collectTexts(it, texts, 0) }
         // 支付完成页可能是独立弹窗而非当前活动窗口，遍历应用窗口兜底
@@ -133,19 +152,44 @@ class AutoRecordAccessibilityService : AccessibilityService() {
             ?.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
             ?.forEach { w -> w.root?.let { root -> collectTexts(root, texts, 0) } }
         if (texts.isEmpty()) return
-        val parsed = WindowCaptureAnalyzer.analyze(texts) ?: return
+        val (parsed, reason) = WindowCaptureAnalyzer.analyzeDetailed(texts)
+        if (parsed == null) {
+            if (s.captureDebug) {
+                val textsPreview = texts.take(12)
+                if (reason.startsWith("未发现方向证据")) {
+                    AutoRecordDebugStore.recordThrottled(pkg, "window", reason, textsPreview)
+                } else {
+                    AutoRecordDebugStore.record(pkg, "window", reason, textsPreview)
+                }
+            }
+            return
+        }
         // 同一页面在短时间内反复触发内容变化，用签名做短时去重；数据库哈希负责长期去重
         val signature = "$pkg|${parsed.amount}|${parsed.isIncome}|${parsed.counterparty.orEmpty()}"
         val now = System.currentTimeMillis()
         synchronized(recentSignatures) {
             val last = recentSignatures[signature]
-            if (last != null && now - last < SIGNATURE_TTL_MS) return
+            if (last != null && now - last < SIGNATURE_TTL_MS) {
+                if (s.captureDebug) {
+                    AutoRecordDebugStore.record(pkg, "window", "同一页面 15 分钟内已记录过，短时去重跳过", emptyList())
+                }
+                return
+            }
             recentSignatures[signature] = now
             if (recentSignatures.size > 128) {
                 recentSignatures.entries.removeIf { now - it.value > SIGNATURE_TTL_MS }
             }
         }
-        record(parsed, pkg, "window", texts.joinToString(" "), notify)
+        val inserted = record(parsed, pkg, "window", texts.joinToString(" "), s.notifyOnRecord)
+        if (s.captureDebug) {
+            val direction = if (parsed.isIncome) "收入" else "支出"
+            AutoRecordDebugStore.record(
+                pkg,
+                "window",
+                if (inserted) "已入库：$direction ¥${parsed.amount}" else "与已存在记录重复，哈希去重跳过",
+                texts.take(12),
+            )
+        }
     }
 
     private fun collectTexts(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
@@ -164,8 +208,8 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         origin: String,
         rawText: String,
         notify: Boolean,
-    ) {
-        val container = (applicationContext as? BookkeepingApp)?.container ?: return
+    ): Boolean {
+        val container = (applicationContext as? BookkeepingApp)?.container ?: return false
         val signed = if (parsed.isIncome) parsed.amount else -parsed.amount
         val now = System.currentTimeMillis()
         val entity = TransactionEntity(
@@ -196,6 +240,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         if (inserted && notify) {
             showRecordNotification(signed, entity.category)
         }
+        return inserted
     }
 
     private fun showRecordNotification(signedAmount: Double, category: String) {
@@ -221,6 +266,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         var INSTANCE: AutoRecordAccessibilityService? = null
             private set
 
+        private val TARGET_PACKAGES = setOf(Packages.WECHAT, Packages.ALIPAY)
         private const val CHANNEL_ID = "auto_record"
         private const val NOTIFICATION_ID = 1001
         private const val WINDOW_SCAN_DELAY_MS = 600L
