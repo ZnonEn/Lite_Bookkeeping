@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.data.db.TransactionEntity
+import com.nonen.Bookkeeping.ui.motion.rememberPressScale
 import com.nonen.Bookkeeping.ui.theme.ExpenseColor
 import com.nonen.Bookkeeping.ui.theme.IncomeColor
 import java.time.Instant
@@ -87,12 +88,14 @@ fun TransactionRow(tx: TransactionEntity, onClick: () -> Unit) {
         ?: tx.note?.takeIf { it.isNotBlank() }
         ?: tx.category
     val sub = tx.note?.takeIf { it.isNotBlank() && it != title }
+    val (pressSource, pressScale) = rememberPressScale(0.98f)
 
     Card(
         modifier = Modifier
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .then(pressScale)
+            .clickable(interactionSource = pressSource, indication = null, onClick = onClick),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),

@@ -60,8 +60,10 @@ import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.core.HashUtil
 import com.nonen.Bookkeeping.data.db.TransactionEntity
 import com.nonen.Bookkeeping.data.repo.TransactionRepository
+import com.nonen.Bookkeeping.ui.components.AnimatedSegmented
 import com.nonen.Bookkeeping.ui.components.formatDateTime
 import com.nonen.Bookkeeping.ui.components.localDateOf
+import com.nonen.Bookkeeping.ui.motion.rememberPressScale
 import com.nonen.Bookkeeping.ui.theme.AppleBlue
 import com.nonen.Bookkeeping.ui.theme.ExpenseColor
 import com.nonen.Bookkeeping.ui.theme.IncomeColor
@@ -225,21 +227,14 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
         }
 
         Column(Modifier.padding(horizontal = 20.dp)) {
-            // 支出/收入 分段控件（选中侧填充收支色）
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(4.dp),
-            ) {
-                TypeSegment("支出", selected = !vm.isIncome, fill = ExpenseColor, modifier = Modifier.weight(1f)) {
-                    vm.setType(false)
-                }
-                TypeSegment("收入", selected = vm.isIncome, fill = IncomeColor, modifier = Modifier.weight(1f)) {
-                    vm.setType(true)
-                }
-            }
+            // 支出/收入 分段控件（滑块弹簧动画，选中侧填充收支色）
+            AnimatedSegmented(
+                options = listOf("支出", "收入"),
+                selectedIndex = if (vm.isIncome) 1 else 0,
+                onSelected = { vm.setType(it == 1) },
+                thumbColor = if (vm.isIncome) IncomeColor else ExpenseColor,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             Spacer(Modifier.height(16.dp))
             Card(
@@ -337,8 +332,10 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
             }
 
             Spacer(Modifier.height(24.dp))
+            val (saveSource, saveScale) = rememberPressScale(0.98f)
             Button(
                 onClick = { vm.save(onBack) },
+                interactionSource = saveSource,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (vm.isIncome) IncomeColor else ExpenseColor,
@@ -350,7 +347,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                     focusedElevation = 0.dp,
                     hoveredElevation = 0.dp,
                 ),
-                modifier = Modifier.fillMaxWidth().height(50.dp),
+                modifier = saveScale.fillMaxWidth().height(50.dp),
             ) {
                 Text("保存", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
@@ -412,46 +409,23 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun TypeSegment(
-    label: String,
-    selected: Boolean,
-    fill: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) fill else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            fontSize = 15.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
 private fun CategoryCell(
     name: String,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val (source, scale) = rememberPressScale(0.96f)
     Column(
         modifier = modifier
+            .then(scale)
             .clip(RoundedCornerShape(18.dp))
             .background(if (selected) AppleBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
             .then(
                 if (selected) Modifier.border(1.dp, AppleBlue.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                 else Modifier
             )
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

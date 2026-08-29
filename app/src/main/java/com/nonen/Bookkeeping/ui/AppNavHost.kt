@@ -19,6 +19,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nonen.Bookkeeping.BookkeepingApp
+import com.nonen.Bookkeeping.ui.motion.motionSpring
+import com.nonen.Bookkeeping.ui.motion.rememberReducedMotion
 import com.nonen.Bookkeeping.ui.screens.AddEditScreen
 import com.nonen.Bookkeeping.ui.screens.AddEditViewModel
 import com.nonen.Bookkeeping.ui.screens.MainScreen
@@ -42,27 +44,30 @@ inline fun <reified VM : ViewModel> vmFactory(crossinline create: () -> VM): Vie
     }
 
 /** iOS 风格推入/推出过渡：新页整宽从右滑入，旧页退到 -1/3 宽；弹出相反（参照墨麒麟） */
-private const val NAV_ANIM_MS = 280
-
 @Composable
 fun AppNavHost() {
     val container = (LocalContext.current.applicationContext as BookkeepingApp).container
     val nav = rememberNavController()
+    val reduced = rememberReducedMotion()
 
     NavHost(
         navController = nav,
         startDestination = Routes.MAIN,
         enterTransition = {
-            fadeIn(tween(NAV_ANIM_MS)) + slideInHorizontally(tween(NAV_ANIM_MS)) { it }
+            if (reduced) fadeIn(tween(150))
+            else fadeIn(motionSpring()) + slideInHorizontally(motionSpring()) { it }
         },
         exitTransition = {
-            fadeOut(tween(NAV_ANIM_MS)) + slideOutHorizontally(tween(NAV_ANIM_MS)) { -it / 3 }
+            if (reduced) fadeOut(tween(150))
+            else fadeOut(motionSpring()) + slideOutHorizontally(motionSpring()) { -it / 3 }
         },
         popEnterTransition = {
-            fadeIn(tween(NAV_ANIM_MS)) + slideInHorizontally(tween(NAV_ANIM_MS)) { -it / 3 }
+            if (reduced) fadeIn(tween(150))
+            else fadeIn(motionSpring()) + slideInHorizontally(motionSpring()) { -it / 3 }
         },
         popExitTransition = {
-            fadeOut(tween(NAV_ANIM_MS)) + slideOutHorizontally(tween(NAV_ANIM_MS)) { it }
+            if (reduced) fadeOut(tween(150))
+            else fadeOut(motionSpring()) + slideOutHorizontally(motionSpring()) { it }
         },
     ) {
         composable(Routes.MAIN) {

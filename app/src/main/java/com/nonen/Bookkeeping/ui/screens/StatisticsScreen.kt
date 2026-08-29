@@ -1,5 +1,8 @@
 package com.nonen.Bookkeeping.ui.screens
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -58,6 +61,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.data.repo.TransactionRepository
+import com.nonen.Bookkeeping.ui.components.AnimatedSegmented
 import com.nonen.Bookkeeping.ui.components.localDateOf
 import com.nonen.Bookkeeping.ui.components.formatPlainAmount
 import com.nonen.Bookkeeping.ui.theme.ChartColors
@@ -354,20 +358,17 @@ fun StatisticsScreen(vm: StatsViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
-                    Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant).padding(4.dp),
+                    Modifier.weight(1f).clip(RoundedCornerShape(14.dp)),
                 ) {
-                    StatsPeriod.entries.forEach { p ->
-                        SegmentText(
-                            label = p.label,
-                            selected = vm.period == p,
-                            selectedFill = MaterialTheme.colorScheme.primary,
-                            selectedText = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.weight(1f),
-                        ) {
+                    AnimatedSegmented(
+                        options = StatsPeriod.entries.map { it.label },
+                        selectedIndex = StatsPeriod.entries.indexOf(vm.period),
+                        onSelected = { idx ->
+                            val p = StatsPeriod.entries[idx]
                             if (p == StatsPeriod.CUSTOM) vm.requestCustom() else vm.updatePeriod(p)
-                        }
-                    }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 IconButton(onClick = { vm.requestCustom() }) {
                     Icon(Icons.Default.DateRange, contentDescription = "自定义日期范围")
@@ -412,21 +413,15 @@ fun StatisticsScreen(vm: StatsViewModel) {
             }
 
             // 支出 / 收入
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(4.dp),
-            ) {
-                SegmentText(
-                    "支出", selected = !vm.isIncome, selectedFill = ExpenseColor,
-                    selectedText = Color.White, modifier = Modifier.weight(1f),
-                ) { vm.setType(false) }
-                SegmentText(
-                    "收入", selected = vm.isIncome, selectedFill = IncomeColor,
-                    selectedText = Color.White, modifier = Modifier.weight(1f),
-                ) { vm.setType(true) }
-            }
+            AnimatedSegmented(
+                options = listOf("支出", "收入"),
+                selectedIndex = if (vm.isIncome) 1 else 0,
+                onSelected = { vm.setType(it == 1) },
+                thumbColor = if (vm.isIncome) IncomeColor else ExpenseColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            )
 
             s?.let { s ->
                 Spacer(Modifier.height(12.dp))
@@ -508,13 +503,15 @@ fun StatisticsScreen(vm: StatsViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("趋势图", style = MaterialTheme.typography.titleMedium)
-                    Row(
-                        Modifier.clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant).padding(2.dp),
-                    ) {
-                        MiniSegment("趋势", chartTrend, Modifier) { chartTrend = true }
-                        MiniSegment("占比", !chartTrend, Modifier) { chartTrend = false }
-                    }
+                    AnimatedSegmented(
+                        options = listOf("趋势", "占比"),
+                        selectedIndex = if (chartTrend) 0 else 1,
+                        onSelected = { chartTrend = it == 0 },
+                        corner = 8.dp,
+                        thumbCorner = 6.dp,
+                        verticalPadding = 5.dp,
+                        fontSize = 12.sp,
+                    )
                 }
 
                 Card(
@@ -585,50 +582,6 @@ private fun DateChip(text: String, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
     )
-}
-
-@Composable
-private fun SegmentText(
-    label: String,
-    selected: Boolean,
-    selectedFill: Color,
-    selectedText: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) selectedFill else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) selectedText else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun MiniSegment(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
 }
 
 @Composable
@@ -800,6 +753,11 @@ private fun RankCard(c: CategoryStat, color: Color) {
                 )
             }
             Spacer(Modifier.height(10.dp))
+            val progress by animateFloatAsState(
+                targetValue = c.percent.coerceIn(0.02f, 1f),
+                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 500f),
+                label = "rankProgress",
+            )
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -809,7 +767,7 @@ private fun RankCard(c: CategoryStat, color: Color) {
             ) {
                 Box(
                     Modifier
-                        .fillMaxWidth(c.percent.coerceIn(0.02f, 1f))
+                        .fillMaxWidth(progress)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(3.dp))
                         .background(color),
