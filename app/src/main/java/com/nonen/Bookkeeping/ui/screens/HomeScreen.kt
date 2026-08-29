@@ -85,13 +85,14 @@ fun HomeScreen(
     val transactions by vm.transactions.collectAsState()
     val month by vm.month.collectAsState()
 
-    val income = transactions.filter { it.amount > 0 }.sumOf { it.amount }
-    val expense = transactions.filter { it.amount < 0 }.sumOf { -it.amount }
-    val grouped = remember(transactions) {
-        transactions.groupBy { localDateOf(it.timestamp) }.toList().sortedByDescending { it.first }
+    val (income, expense, grouped) = remember(transactions) {
+        val incomeSum = transactions.filter { it.amount > 0 }.sumOf { it.amount }
+        val expenseSum = transactions.filter { it.amount < 0 }.sumOf { -it.amount }
+        val groupedByDay = transactions.groupBy { localDateOf(it.timestamp) }.toList().sortedByDescending { it.first }
+        Triple(incomeSum, expenseSum, groupedByDay)
     }
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,

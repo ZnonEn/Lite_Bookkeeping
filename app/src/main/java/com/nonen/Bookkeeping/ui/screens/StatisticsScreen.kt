@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -67,7 +69,9 @@ import com.nonen.Bookkeeping.ui.components.formatPlainAmount
 import com.nonen.Bookkeeping.ui.theme.ChartColors
 import com.nonen.Bookkeeping.ui.theme.ExpenseColor
 import com.nonen.Bookkeeping.ui.theme.IncomeColor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -155,7 +159,10 @@ class StatsViewModel(private val repo: TransactionRepository) : ViewModel() {
     }
 
     fun load() {
-        viewModelScope.launch { stats = compute() }
+        viewModelScope.launch {
+            // 聚合计算放后台线程，避免占用主线程帧预算
+            stats = withContext(Dispatchers.Default) { compute() }
+        }
     }
 
     private fun typeNoun() = if (isIncome) "收入" else "支出"
@@ -339,13 +346,13 @@ fun StatisticsScreen(vm: StatsViewModel) {
         ) datePickTarget = 0
     }
 
-    // 统计页作为 MainScreen Pager 的一页，直接输出滚动内容（底栏由 MainScreen 提供）
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState()),
+    // 统计页作为 MainScreen Pager 的一页；LazyColumn 惰性组合，避免整页全量测量
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
     ) {
+        item("content") {
+            Column {
             Text(
                 "统计",
                 style = MaterialTheme.typography.titleMedium,
@@ -529,11 +536,18 @@ fun StatisticsScreen(vm: StatsViewModel) {
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
-                    s.categories.forEachIndexed { index, c ->
-                        RankCard(c, color = ChartColors[index % ChartColors.size])
-                    }
                 }
-                Spacer(Modifier.height(96.dp))}
+            }
+            }
+        }
+        // 分类排行：列表部分惰性组合、滚动回收
+        itemsIndexed(
+            s?.categories ?: emptyList(),
+            key = { index, c -> "rank_${index}_${c.category}" },
+        ) { index, c ->
+            RankCard(c, color = ChartColors[index % ChartColors.size])
+        }
+    }
 
     datePickTarget?.let { target ->
         val initial = if (target == 0) vm.customStart else vm.customEnd
@@ -556,7 +570,6 @@ fun StatisticsScreen(vm: StatsViewModel) {
             dismissButton = { TextButton(onClick = { datePickTarget = null }) { Text("取消") } },
         ) { DatePicker(state = state) }
     }
-}
 }
 
 private fun typeNounOf(vm: StatsViewModel) = if (vm.isIncome) "收入" else "支出"

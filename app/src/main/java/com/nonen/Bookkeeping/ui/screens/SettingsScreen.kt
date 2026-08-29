@@ -171,7 +171,6 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState()),
     ) {
         Text(
