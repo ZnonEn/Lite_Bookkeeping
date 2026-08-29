@@ -23,6 +23,8 @@ class TransactionRepository(
 
     suspend fun getById(id: Long): TransactionEntity? = dao.getById(id)
 
+    fun observeRange(start: Long, end: Long): Flow<List<TransactionEntity>> = dao.observeRange(start, end)
+
     /** @return false 表示 hash 重复，已存在相同记录 */
     suspend fun insertIfNew(entity: TransactionEntity): Boolean = dao.insert(entity) != -1L
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -51,9 +53,13 @@ import com.nonen.Bookkeeping.ui.components.TransactionRow
 import com.nonen.Bookkeeping.ui.components.formatPlainAmount
 import com.nonen.Bookkeeping.ui.components.formatSignedPlain
 import com.nonen.Bookkeeping.ui.components.localDateOf
+import com.nonen.Bookkeeping.ui.theme.IncomeColor
+import com.nonen.Bookkeeping.ui.theme.ExpenseColor
 import com.nonen.Bookkeeping.ui.theme.InkPrimary
 import com.nonen.Bookkeeping.ui.motion.rememberPressScale
 import androidx.compose.ui.window.Dialog
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,6 +77,16 @@ class HomeViewModel(private val repo: TransactionRepository) : ViewModel() {
 
     val transactions: StateFlow<List<TransactionEntity>> =
         _month.flatMapLatest { repo.observeMonth(it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // 近7日（含今天）：独立于所选月份，随账单变化实时刷新
+    private val weekStart =
+        LocalDate.now().minusDays(6).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    private val weekEnd =
+        LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    val weekTransactions: StateFlow<List<TransactionEntity>> =
+        repo.observeRange(weekStart, weekEnd)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun prevMonth() {
@@ -95,6 +111,7 @@ fun HomeScreen(
 ) {
     val transactions by vm.transactions.collectAsState()
     val month by vm.month.collectAsState()
+    val weekTx by vm.weekTransactions.collectAsState()
     var showMonthPicker by remember { mutableStateOf(false) }
 
     val (income, expense, grouped) = remember(transactions) {
@@ -102,6 +119,20 @@ fun HomeScreen(
         val expenseSum = transactions.filter { it.amount < 0 }.sumOf { -it.amount }
         val groupedByDay = transactions.groupBy { localDateOf(it.timestamp) }.toList().sortedByDescending { it.first }
         Triple(incomeSum, expenseSum, groupedByDay)
+    }
+
+    val weekDays = remember(weekTx) {
+        val start = LocalDate.now().minusDays(6)
+        val byDay = weekTx.groupBy { localDateOf(it.timestamp) }
+        (0..6).map { i ->
+            val date = start.plusDays(i.toLong())
+            val list = byDay[date].orEmpty()
+            WeekDayBar(
+                date = date,
+                income = list.filter { it.amount > 0 }.sumOf { it.amount },
+                expense = list.filter { it.amount < 0 }.sumOf { -it.amount },
+            )
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -117,40 +148,35 @@ fun HomeScreen(
             IconButton(onClick = onSearch) { Icon(Icons.Default.Search, contentDescription = "搜索") }
         }
 
-        OverviewCard(
-            month = month,
-            income = income,
-            expense = expense,
-            onPrev = vm::prevMonth,
-            onNext = vm::nextMonth,
-            onOpenPicker = { showMonthPicker = true },
-        )
-
-        if (showMonthPicker) {
-            MonthPickerDialog(
-                current = month,
-                onSelect = {
-                    vm.selectMonth(it)
-                    showMonthPicker = false
-                },
-                onDismiss = { showMonthPicker = false },
-            )
-        }
-
-        if (grouped.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("✎", fontSize = 36.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "还没有账单记录",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        // 概览卡、近7日卡、账单列表都在同一个滚动容器里，随页面整体滑动
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "overview") {
+                OverviewCard(
+                    month = month,
+                    income = income,
+                    expense = expense,
+                    onPrev = vm::prevMonth,
+                    onNext = vm::nextMonth,
+                    onOpenPicker = { showMonthPicker = true },
+                )
             }
-        } else {
-            LazyColumn(Modifier.fillMaxSize()) {
+            item(key = "week") { WeekOverviewCard(weekDays) }
+
+            if (grouped.isEmpty()) {
+                item(key = "empty") {
+                    Box(Modifier.fillMaxWidth().height(280.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("✎", fontSize = 36.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "还没有账单记录",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            } else {
                 grouped.forEach { (date, items) ->
                     val dayIncome = items.filter { it.amount > 0 }.sumOf { it.amount }
                     val dayExpense = items.filter { it.amount < 0 }.sumOf { -it.amount }
@@ -159,9 +185,19 @@ fun HomeScreen(
                         TransactionRow(tx = tx, onClick = { onEdit(tx.id) })
                     }
                 }
-                item { Spacer(Modifier.height(24.dp)) }
             }
         }
+    }
+
+    if (showMonthPicker) {
+        MonthPickerDialog(
+            current = month,
+            onSelect = {
+                vm.selectMonth(it)
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false },
+        )
     }
 }
 
@@ -271,6 +307,82 @@ private fun StatColumn(label: String, value: Double) {
             color = Color.White,
         )
     }
+}
+
+/** 近7日单日收支（用于迷你柱状图） */
+private data class WeekDayBar(val date: LocalDate, val income: Double, val expense: Double)
+
+/** 近7日收支卡：每天收入/支出两根迷你柱，随列表滚动 */
+@Composable
+private fun WeekOverviewCard(days: List<WeekDayBar>) {
+    val maxV = days.maxOf { maxOf(it.income, it.expense) }.coerceAtLeast(1.0)
+    val net = days.sumOf { it.income - it.expense }
+
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("近7日", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    formatSignedPlain(net),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth().height(78.dp)) {
+                days.forEach { d ->
+                    DayBarColumn(d, maxV, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayBarColumn(d: WeekDayBar, maxV: Double, modifier: Modifier = Modifier) {
+    Column(
+        modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom,
+    ) {
+        Row(
+            Modifier.height(54.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            MiniBar(d.income, maxV, IncomeColor)
+            MiniBar(d.expense, maxV, ExpenseColor)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "${d.date.dayOfMonth}",
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun MiniBar(v: Double, maxV: Double, color: Color) {
+    // 无数据时留 4dp 半透明残柱，标示当天有无发生额
+    val h = if (v <= 0) 4.dp else (8 + 44 * (v / maxV)).dp
+    Box(
+        Modifier
+            .width(6.dp)
+            .height(h)
+            .clip(RoundedCornerShape(3.dp))
+            .background(if (v <= 0) color.copy(alpha = 0.35f) else color),
+    )
 }
 
 /** 月份选择日历：年份可翻页，点选月份直接跳转 */
