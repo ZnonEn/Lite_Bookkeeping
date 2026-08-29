@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,7 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +52,8 @@ import com.nonen.Bookkeeping.ui.components.formatPlainAmount
 import com.nonen.Bookkeeping.ui.components.formatSignedPlain
 import com.nonen.Bookkeeping.ui.components.localDateOf
 import com.nonen.Bookkeeping.ui.theme.InkPrimary
+import com.nonen.Bookkeeping.ui.motion.rememberPressScale
+import androidx.compose.ui.window.Dialog
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -73,6 +80,10 @@ class HomeViewModel(private val repo: TransactionRepository) : ViewModel() {
     fun nextMonth() {
         _month.value = _month.value.plusMonths(1)
     }
+
+    fun selectMonth(m: YearMonth) {
+        _month.value = m
+    }
 }
 
 /** 首页内容（作为 MainScreen 里 Pager 的一页，底栏由 MainScreen 提供） */
@@ -84,6 +95,7 @@ fun HomeScreen(
 ) {
     val transactions by vm.transactions.collectAsState()
     val month by vm.month.collectAsState()
+    var showMonthPicker by remember { mutableStateOf(false) }
 
     val (income, expense, grouped) = remember(transactions) {
         val incomeSum = transactions.filter { it.amount > 0 }.sumOf { it.amount }
@@ -111,7 +123,19 @@ fun HomeScreen(
             expense = expense,
             onPrev = vm::prevMonth,
             onNext = vm::nextMonth,
+            onOpenPicker = { showMonthPicker = true },
         )
+
+        if (showMonthPicker) {
+            MonthPickerDialog(
+                current = month,
+                onSelect = {
+                    vm.selectMonth(it)
+                    showMonthPicker = false
+                },
+                onDismiss = { showMonthPicker = false },
+            )
+        }
 
         if (grouped.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -149,6 +173,7 @@ private fun OverviewCard(
     expense: Double,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    onOpenPicker: () -> Unit,
 ) {
     Box(
         modifier = Modifier
@@ -171,7 +196,7 @@ private fun OverviewCard(
                     color = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.weight(1f),
                 )
-                MonthChip(month = month, onPrev = onPrev, onNext = onNext)
+                MonthChip(month = month, onPrev = onPrev, onNext = onNext, onOpenPicker = onOpenPicker)
             }
             Spacer(Modifier.height(10.dp))
             Text(
@@ -191,7 +216,7 @@ private fun OverviewCard(
 }
 
 @Composable
-private fun MonthChip(month: YearMonth, onPrev: () -> Unit, onNext: () -> Unit) {
+private fun MonthChip(month: YearMonth, onPrev: () -> Unit, onNext: () -> Unit, onOpenPicker: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
@@ -213,6 +238,10 @@ private fun MonthChip(month: YearMonth, onPrev: () -> Unit, onNext: () -> Unit) 
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             color = Color.White.copy(alpha = 0.8f),
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onOpenPicker)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
         )
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -240,6 +269,120 @@ private fun StatColumn(label: String, value: Double) {
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
             color = Color.White,
+        )
+    }
+}
+
+/** 月份选择日历：年份可翻页，点选月份直接跳转 */
+@Composable
+private fun MonthPickerDialog(
+    current: YearMonth,
+    onSelect: (YearMonth) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val now = remember { YearMonth.now() }
+    var displayYear by remember { mutableIntStateOf(current.year) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 18.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "选择月份",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = "上一年",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .clickable { displayYear -= 1 },
+                        )
+                        Text(
+                            text = "${displayYear}年",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 2.dp),
+                        )
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "下一年",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .clickable { displayYear += 1 },
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (1..12).chunked(3).forEach { rowMonths ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowMonths.forEach { m ->
+                                MonthCell(
+                                    month = m,
+                                    selected = displayYear == current.year && m == current.monthValue,
+                                    isCurrent = displayYear == now.year && m == now.monthValue,
+                                    onClick = { onSelect(YearMonth.of(displayYear, m)) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthCell(
+    month: Int,
+    selected: Boolean,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val (interaction, pressScale) = rememberPressScale(0.94f)
+    Box(
+        modifier = modifier
+            .then(pressScale)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) InkPrimary else Color.Transparent)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "${month}月",
+            fontSize = 14.sp,
+            fontWeight = if (selected || isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+            color = when {
+                selected -> Color.White
+                isCurrent -> InkPrimary
+                else -> MaterialTheme.colorScheme.onSurface
+            },
         )
     }
 }
