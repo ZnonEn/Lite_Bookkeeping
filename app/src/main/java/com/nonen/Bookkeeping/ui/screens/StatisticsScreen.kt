@@ -622,7 +622,7 @@ private fun SubFilterBar(options: List<String>, selectedIndex: Int?, onSelect: (
     }
 }
 
-/** 胶囊柱状趋势图（横向可滚动） */
+/** 胶囊柱状趋势图：≤12 个桶平铺整行（周视图铺满宽度），更多时横向滚动 */
 @Composable
 private fun BarChart(buckets: List<StatsBucket>, accent: Color) {
     if (buckets.isEmpty() || buckets.all { it.value <= 0.0 }) {
@@ -632,22 +632,53 @@ private fun BarChart(buckets: List<StatsBucket>, accent: Color) {
         return
     }
     val maxV = buckets.maxOf { it.value }.coerceAtLeast(1.0)
-    LazyRow(
-        modifier = Modifier.fillMaxWidth().height(190.dp).padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp),
+
+    if (buckets.size <= 12) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(176.dp)
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            buckets.forEach { b ->
+                BarBucket(b, maxV, accent, modifier = Modifier.weight(1f))
+            }
+        }
+    } else {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(176.dp)
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+        ) {
+            items(buckets) { b ->
+                BarBucket(b, maxV, accent, modifier = Modifier.width(26.dp))
+            }
+        }
+    }
+}
+
+/**
+ * 单个柱位：柱体 + 数值文字锁在固定高度（120dp）的绘图区内底部对齐，
+ * 标签行独立在绘图区之外——柱子再高也不可能越过基线压住标签。
+ */
+@Composable
+private fun BarBucket(b: StatsBucket, maxV: Double, accent: Color, modifier: Modifier = Modifier) {
+    Column(
+        modifier.fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        items(buckets, key = { it.label + it.value }) { b ->
-            Column(
-                Modifier.fillMaxHeight(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
+        Box(Modifier.height(120.dp), contentAlignment = Alignment.BottomCenter) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (b.value > 0) {
                     Text(shortAmount(b.value), fontSize = 10.sp, color = accent)
                     Spacer(Modifier.height(4.dp))
                 }
-                val h = if (b.value <= 0) 4.dp else (16 + 118 * (b.value / maxV)).dp
+                // 最高 100dp：文字 13 + 间距 4 + 柱 100 = 117 ≤ 绘图区 120
+                val h = if (b.value <= 0) 4.dp else (16 + 84 * (b.value / maxV)).dp
                 Box(
                     Modifier
                         .width(22.dp)
@@ -655,16 +686,16 @@ private fun BarChart(buckets: List<StatsBucket>, accent: Color) {
                         .clip(RoundedCornerShape(11.dp))
                         .background(if (b.value <= 0) MaterialTheme.colorScheme.surfaceVariant else accent.copy(alpha = 0.9f)),
                 )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    b.label,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
             }
         }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            b.label,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+        )
     }
 }
 

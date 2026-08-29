@@ -3,7 +3,6 @@ package com.nonen.Bookkeeping.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -120,9 +120,11 @@ private fun MainBottomBar(
     onTabSelected: (Int) -> Unit,
     onAdd: () -> Unit,
 ) {
-    val isDark = isSystemInDarkTheme()
-    val barColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.65f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f)
+    // 跟随应用内主题（支持应用内深浅覆盖，而非仅系统设置）
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    // 浅色底（#F5F5F7）上纯白胶囊几乎隐形：提高不透明度并加深描边，保证底栏轮廓可辨
+    val barColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.92f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.12f)
     val pillColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
     val density = LocalDensity.current
     var barWidthPx by remember { mutableStateOf(0f) }
