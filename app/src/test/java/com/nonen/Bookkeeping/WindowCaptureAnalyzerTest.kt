@@ -50,6 +50,22 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
+    fun `微信聊天内转账成功页`() {
+        val p = WindowCaptureAnalyzer.analyze(listOf("支付成功", "待小号确认收款", "¥", "0.01", "完成"))
+        assertNotNull(p)
+        assertEquals(0.01, p!!.amount, 0.001)
+        assertEquals(false, p.isIncome)
+    }
+
+    @Test
+    fun `转账气泡待确认收款也可作为支出证据`() {
+        val p = WindowCaptureAnalyzer.analyze(listOf("微信转账", "¥0.01", "待确认收款"))
+        assertNotNull(p)
+        assertEquals(0.01, p!!.amount, 0.001)
+        assertEquals(false, p.isIncome)
+    }
+
+    @Test
     fun `无方向证据的页面不记录`() {
         assertNull(WindowCaptureAnalyzer.analyze(listOf("微信支付", "首页", "我的", "¥88.00")))
     }

@@ -80,8 +80,10 @@ object WindowCaptureAnalyzer {
 
     private val EXPENSE_ANCHORS = listOf("付款金额", "支付金额", "转账金额")
     private val INCOME_ANCHORS = listOf("退款金额", "收款金额", "入账金额")
-    private val EXPENSE_SUCCESS = listOf("支付成功", "付款成功", "已支付", "已付款", "已转账", "扣款成功", "付款时间")
+    private val EXPENSE_SUCCESS = listOf("支付成功", "付款成功", "已支付", "已付款", "已转账", "转账成功", "扣款成功", "付款时间")
     private val INCOME_SUCCESS = listOf("已收钱", "已收款", "收款成功", "已存入", "已到账", "到账成功", "退款成功", "收款时间")
+    // 聊天内转账发出后，成功页/聊天气泡上显示「待XX确认收款」——钱已付出、对方未领
+    private val EXPENSE_PATTERNS = listOf(Regex("""待.{0,8}?确认收款"""))
 
     fun analyze(texts: List<String>): ParsedPayment? {
         if (texts.isEmpty()) return null
@@ -90,7 +92,8 @@ object WindowCaptureAnalyzer {
         val hasIncomeAnchor = INCOME_ANCHORS.any { joined.contains(it) }
         if (hasExpenseAnchor && hasIncomeAnchor) return null // 同时出现，方向不明
 
-        val hasExpenseWord = EXPENSE_SUCCESS.any { joined.contains(it) }
+        val hasExpenseWord = EXPENSE_SUCCESS.any { joined.contains(it) } ||
+            EXPENSE_PATTERNS.any { it.containsMatchIn(joined) }
         val hasIncomeWord = INCOME_SUCCESS.any { joined.contains(it) }
         // 既无金额标签锚点、也无成功提示词的页面一律不抓，避免在普通界面误记
         if (!hasExpenseAnchor && !hasIncomeAnchor && hasExpenseWord == hasIncomeWord) return null

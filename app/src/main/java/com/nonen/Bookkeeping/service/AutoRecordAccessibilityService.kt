@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.nonen.Bookkeeping.BookkeepingApp
 import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.HashUtil
@@ -72,13 +73,19 @@ class AutoRecordAccessibilityService : AccessibilityService() {
                 }
             }
 
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
-            -> {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 if (!notificationText.isNullOrBlank()) {
                     scope.launch { handleTextCapture(pkg, notificationText, "notification") }
                 }
-                scheduleWindowScan(pkg)
+                // 新窗口（支付完成页通常是新页面/弹窗）：尽快扫一次
+                scheduleWindowScan(pkg, WINDOW_SCAN_FAST_MS)
+            }
+
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                if (!notificationText.isNullOrBlank()) {
+                    scope.launch { handleTextCapture(pkg, notificationText, "notification") }
+                }
+                scheduleWindowScan(pkg, WINDOW_SCAN_DELAY_MS)
             }
         }
     }
@@ -105,7 +112,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         record(parsed, pkg, origin, text, s.notifyOnRecord)
     }
 
-    private fun scheduleWindowScan(pkg: String) {
+    private fun scheduleWindowScan(pkg: String, delayMs: Long) {
         scanRunnable?.let { handler.removeCallbacks(it) }
         val runnable = Runnable {
             scope.launch {
@@ -115,13 +122,17 @@ class AutoRecordAccessibilityService : AccessibilityService() {
             }
         }
         scanRunnable = runnable
-        handler.postDelayed(runnable, WINDOW_SCAN_DELAY_MS)
+        handler.postDelayed(runnable, delayMs)
     }
 
     private suspend fun scanWindow(pkg: String, notify: Boolean) {
-        val root = rootInActiveWindow ?: return
         val texts = ArrayList<String>(64)
-        collectTexts(root, texts, 0)
+        rootInActiveWindow?.let { collectTexts(it, texts, 0) }
+        // 支付完成页可能是独立弹窗而非当前活动窗口，遍历应用窗口兜底
+        runCatching { windows }.getOrNull()
+            ?.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            ?.forEach { w -> w.root?.let { root -> collectTexts(root, texts, 0) } }
+        if (texts.isEmpty()) return
         val parsed = WindowCaptureAnalyzer.analyze(texts) ?: return
         // 同一页面在短时间内反复触发内容变化，用签名做短时去重；数据库哈希负责长期去重
         val signature = "$pkg|${parsed.amount}|${parsed.isIncome}|${parsed.counterparty.orEmpty()}"
@@ -139,8 +150,8 @@ class AutoRecordAccessibilityService : AccessibilityService() {
 
     private fun collectTexts(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int) {
         if (depth > MAX_NODE_DEPTH || out.size > MAX_NODE_TEXTS) return
-        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
-        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { out.add(it) }
+        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { if (!out.contains(it)) out.add(it) }
+        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { if (!out.contains(it)) out.add(it) }
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             collectTexts(child, out, depth + 1)
@@ -213,6 +224,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         private const val CHANNEL_ID = "auto_record"
         private const val NOTIFICATION_ID = 1001
         private const val WINDOW_SCAN_DELAY_MS = 600L
+        private const val WINDOW_SCAN_FAST_MS = 120L
         private const val SIGNATURE_TTL_MS = 15 * 60 * 1000L
         private const val AUTO_HASH_BUCKET_MS = 10 * 60 * 1000L
         private const val MAX_NODE_DEPTH = 24
