@@ -53,7 +53,7 @@
 3. `./gradlew assembleDebug` 构建调试包，或直接在 Android Studio 中运行
 
 ```bash
-git clone https://github.com/ZnonEn/Bookkeeping.git
+git clone https://github.com/ZnonEn/Lite_Bookkeeping.git
 cd Bookkeeping
 ./gradlew assembleDebug
 ```
