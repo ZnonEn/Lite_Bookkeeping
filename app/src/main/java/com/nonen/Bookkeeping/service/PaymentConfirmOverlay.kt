@@ -52,12 +52,23 @@ object PaymentConfirmOverlay {
 
     fun canShow(context: Context): Boolean = Settings.canDrawOverlays(context)
 
-    /** 弹出确认卡片；同一时间只有一张，重复调用会替换旧的（旧卡按「忽略」处理） */
+    /**
+     * 弹出确认卡片；同一时间只有一张，重复调用会替换旧的（旧卡按「忽略」处理）。
+     *
+     * 不以 [canShow]（标准权限查询）为前置门槛——MIUI/HyperOS 的「显示悬浮窗」开关
+     * 与标准查询存在不同步（误报未授权），直接尝试 addView，失败才回调 [onError]
+     * 走降级提醒。30 秒无操作自动消失。
+     */
     @Synchronized
-    fun show(context: Context, card: Card, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit) {
-        if (!canShow(context)) return
+    fun show(
+        context: Context,
+        card: Card,
+        onConfirm: (Boolean) -> Unit,
+        onDismiss: () -> Unit,
+        onError: (String) -> Unit = {},
+    ) {
         val app = context.applicationContext
-        mainHandler.post { showInternal(app, card, onConfirm, onDismiss) }
+        mainHandler.post { showInternal(app, card, onConfirm, onDismiss, onError) }
     }
 
     /** 关闭当前卡片（不触发任何回调），用于清理 */
@@ -75,7 +86,14 @@ object PaymentConfirmOverlay {
         currentView = null
     }
 
-    private fun showInternal(app: Context, card: Card, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit) {
+    private fun showInternal(
+        app: Context,
+        card: Card,
+        onConfirm: (Boolean) -> Unit,
+        onDismiss: () -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        android.util.Log.d("PaymentConfirmOverlay", "showInternal: ${card.sourceLabel} ¥${card.amountText}")
         val replaced = currentDismiss
         removeCurrent()
         replaced?.invoke()
@@ -236,10 +254,14 @@ object PaymentConfirmOverlay {
         dismissRunnable = timeout
         mainHandler.postDelayed(timeout, 30_000L)
 
-        runCatching {
+        try {
             app.getSystemService(WindowManager::class.java)?.addView(root, params)
             currentView = root
             currentDismiss = dismiss
+        } catch (t: Throwable) {
+            // 系统真的拒绝了悬浮窗（含 MIUI/HyperOS 的询问/拒绝模式）：不再静默，降级给管线提示
+            android.util.Log.w("PaymentConfirmOverlay", "addView failed", t)
+            onError(t.message ?: t.javaClass.simpleName)
         }
     }
 }
