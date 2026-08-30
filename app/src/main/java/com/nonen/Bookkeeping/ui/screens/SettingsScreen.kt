@@ -8,6 +8,14 @@ import android.net.Uri
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,10 +28,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -35,9 +47,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -289,261 +303,252 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
-            SectionTitle("外观")
-            SectionCard {
-                Column(Modifier.padding(vertical = 4.dp)) {
-                    ThemeMode.entries.forEach { mode ->
-                        RadioRow(
-                            label = mode.label,
-                            selected = vm.themeMode == mode,
-                            onClick = { vm.updateThemeMode(mode) },
+        CollapsibleSection(title = "外观", emoji = "🎨") {
+            Column(Modifier.padding(vertical = 4.dp)) {
+                ThemeMode.entries.forEach { mode ->
+                    RadioRow(
+                        label = mode.label,
+                        selected = vm.themeMode == mode,
+                        onClick = { vm.updateThemeMode(mode) },
+                    )
+                }
+            }
+        }
+
+        // 自动记账是核心功能且承载授权状态提醒，默认展开
+        CollapsibleSection(title = "自动记账", emoji = "⚡", initiallyExpanded = true) {
+            ToggleRow(
+                title = "启用自动记账",
+                subtitle = "检测到支付时弹出确认卡片，手动确认后登记入账",
+                checked = vm.autoRecord,
+                onChecked = vm::updateAutoRecord,
+            )
+            if (!vm.accessibilityEnabled) {
+                Text(
+                    "⚠ 无障碍服务未开启，自动记账不会生效",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                TextButton(
+                    onClick = { context.startActivity(Intent(SystemSettings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) { Text("去开启无障碍服务") }
+            }
+            if (vm.accessibilityEnabled && !vm.overlayPermissionEnabled) {
+                Text(
+                    "确认卡片需要「显示在其他应用上层」权限，未授权时检测到支付只会收到提醒通知",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                TextButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}"),
+                            ),
                         )
-                    }
+                    },
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) { Text("去授权悬浮窗") }
+            }
+            if (vm.accessibilityEnabled && !vm.notificationAccessEnabled) {
+                Text(
+                    "微信/支付宝的支付页面对无障碍隐藏内容，建议同时开启「通知使用权」——支付完成后的系统通知会带金额，由它兜底记录",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                TextButton(
+                    onClick = { context.startActivity(Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) { Text("去开启通知使用权") }
+            }
+
+            // 屏幕识别（OCR）兜底通道
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("屏幕识别（OCR 兜底）", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "通知没有金额且支付页面对无障碍隐藏时（如支付宝扫码），抓取屏幕文字识别金额与方向。需授权屏幕录制，重启手机后需重新授权",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        if (vm.ocrRunning) "状态：运行中 · ${vm.ocrStatus}" else "状态：未开启",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (vm.ocrRunning) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+            Row(Modifier.padding(horizontal = 8.dp)) {
+                TextButton(
+                    onClick = {
+                        context.getSystemService(MediaProjectionManager::class.java)?.let { mgr ->
+                            projectionLauncher.launch(mgr.createScreenCaptureIntent())
+                        }
+                    },
+                ) { Text(if (vm.ocrRunning) "重新授权屏幕录制" else "授权屏幕录制并开启") }
+                if (vm.ocrRunning) {
+                    TextButton(onClick = { vm.stopOcr(context) }) { Text("停止") }
                 }
             }
 
-            SectionTitle("自动记账")
-            SectionCard {
-                ToggleRow(
-                    title = "启用自动记账",
-                    subtitle = "检测到支付时弹出确认卡片，手动确认后登记入账",
-                    checked = vm.autoRecord,
-                    onChecked = vm::updateAutoRecord,
-                )
-                if (!vm.accessibilityEnabled) {
-                    Text(
-                        "⚠ 无障碍服务未开启，自动记账不会生效",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 16.dp),
+            CaptureDebugCard()
+            SectionDivider()
+            Column(Modifier.padding(vertical = 4.dp)) {
+                ListenScope.entries.forEach { scope ->
+                    RadioRow(
+                        label = scope.label,
+                        selected = vm.listenScope == scope,
+                        onClick = { vm.updateListenScope(scope) },
                     )
-                    TextButton(
-                        onClick = { context.startActivity(Intent(SystemSettings.ACTION_ACCESSIBILITY_SETTINGS)) },
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) { Text("去开启无障碍服务") }
                 }
-                if (vm.accessibilityEnabled && !vm.overlayPermissionEnabled) {
-                    Text(
-                        "确认卡片需要「显示在其他应用上层」权限，未授权时检测到支付只会收到提醒通知",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    TextButton(
-                        onClick = {
-                            context.startActivity(
-                                Intent(
-                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:${context.packageName}"),
-                                ),
+            }
+            SectionDivider()
+            ToggleRow(
+                title = "自动记录成功后提醒",
+                subtitle = "发一条本地通知，方便核对",
+                checked = vm.notifyOnRecord,
+                onChecked = vm::updateNotify,
+            )
+            ToggleRow(
+                title = "手动改分类时自动学习",
+                subtitle = "记住你的修改，下次同类交易自动归类",
+                checked = vm.learnOnEdit,
+                onChecked = vm::updateLearn,
+            )
+        }
+
+        CollapsibleSection(title = "账单导入", emoji = "📥") {
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "从微信/支付宝导出账单文件后导入，自动去重、自动分类。\n微信为 xlsx 文件，支付宝为 csv 文件。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { guideSource = WechatBillParser.SOURCE },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) { Text("导入微信账单") }
+                    Button(
+                        onClick = { guideSource = AlipayBillParser.SOURCE },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) { Text("导入支付宝账单") }
+                }
+            }
+            if (vm.importing) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    val p = vm.importProgress
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (p < 0f) {
+                            LinearProgressIndicator(Modifier.weight(1f))
+                            Text(
+                                "解析文件…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 12.dp),
                             )
-                        },
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) { Text("去授权悬浮窗") }
-                }
-                if (vm.accessibilityEnabled && !vm.notificationAccessEnabled) {
-                    Text(
-                        "微信/支付宝的支付页面对无障碍隐藏内容，建议同时开启「通知使用权」——支付完成后的系统通知会带金额，由它兜底记录",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                    TextButton(
-                        onClick = { context.startActivity(Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                    ) { Text("去开启通知使用权") }
-                }
-
-                // 屏幕识别（OCR）兜底通道
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("屏幕识别（OCR 兜底）", style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "通知没有金额且支付页面对无障碍隐藏时（如支付宝扫码），抓取屏幕文字识别金额与方向。需授权屏幕录制，重启手机后需重新授权",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            if (vm.ocrRunning) "状态：运行中 · ${vm.ocrStatus}" else "状态：未开启",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (vm.ocrRunning) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
-                Row(Modifier.padding(horizontal = 8.dp)) {
-                    TextButton(
-                        onClick = {
-                            context.getSystemService(MediaProjectionManager::class.java)?.let { mgr ->
-                                projectionLauncher.launch(mgr.createScreenCaptureIntent())
-                            }
-                        },
-                    ) { Text(if (vm.ocrRunning) "重新授权屏幕录制" else "授权屏幕录制并开启") }
-                    if (vm.ocrRunning) {
-                        TextButton(onClick = { vm.stopOcr(context) }) { Text("停止") }
-                    }
-                }
-
-                CaptureDebugCard()
-            }
-
-            SectionCard {
-                Column(Modifier.padding(vertical = 4.dp)) {
-                    ListenScope.entries.forEach { scope ->
-                        RadioRow(
-                            label = scope.label,
-                            selected = vm.listenScope == scope,
-                            onClick = { vm.updateListenScope(scope) },
-                        )
-                    }
-                }
-            }
-
-            SectionCard {
-                ToggleRow(
-                    title = "自动记录成功后提醒",
-                    subtitle = "发一条本地通知，方便核对",
-                    checked = vm.notifyOnRecord,
-                    onChecked = vm::updateNotify,
-                )
-                ToggleRow(
-                    title = "手动改分类时自动学习",
-                    subtitle = "记住你的修改，下次同类交易自动归类",
-                    checked = vm.learnOnEdit,
-                    onChecked = vm::updateLearn,
-                )
-            }
-
-            SectionTitle("账单导入")
-            SectionCard {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "从微信/支付宝导出账单文件后导入，自动去重、自动分类。\n微信为 xlsx 文件，支付宝为 csv 文件。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
-                            onClick = { guideSource = WechatBillParser.SOURCE },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-                        ) { Text("导入微信账单") }
-                        Button(
-                            onClick = { guideSource = AlipayBillParser.SOURCE },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-                        ) { Text("导入支付宝账单") }
-                    }
-                }
-                if (vm.importing) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                        val p = vm.importProgress
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (p < 0f) {
-                                LinearProgressIndicator(Modifier.weight(1f))
-                                Text(
-                                    "解析文件…",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = 12.dp),
-                                )
-                            } else {
-                                LinearProgressIndicator(
-                                    progress = { p.coerceIn(0f, 1f) },
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    "导入中 ${(p.coerceIn(0f, 1f) * 100).toInt()}%",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = 12.dp),
-                                )
-                            }
+                        } else {
+                            LinearProgressIndicator(
+                                progress = { p.coerceIn(0f, 1f) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "导入中 ${(p.coerceIn(0f, 1f) * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
                         }
                     }
                 }
+            }
+            vm.statusMessage?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                )
+            }
+        }
+
+        CollapsibleSection(title = "分类规则", emoji = "🏷️") {
+            TextButton(onClick = onRules, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text("管理分类规则", color = MaterialTheme.colorScheme.secondary)
+            }
+        }
+
+        CollapsibleSection(title = "数据备份", emoji = "💾") {
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "导出 / 导入本应用专属的 Excel 备份（.xlsx，可用 Excel/WPS 打开）；导入按校验码自动去重",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { exportLauncher.launch("bookkeeping_backup_${LocalDate.now()}.xlsx") },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) { Text("导出 Excel 备份") }
+                    Button(
+                        onClick = { backupLauncher.launch(arrayOf("*/*")) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) { Text("导入 Excel 备份") }
+                }
+                if (vm.importing) {
+                    Spacer(Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { vm.importProgress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 vm.statusMessage?.let {
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         it,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
                     )
                 }
             }
+        }
 
-            SectionTitle("分类规则")
-            SectionCard {
-                TextButton(onClick = onRules, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text("管理分类规则", color = MaterialTheme.colorScheme.secondary)
-                }
+        CollapsibleSection(title = "关于", emoji = "ℹ️") {
+            Column(Modifier.padding(16.dp)) {
+                Text(
+                    "轻记账 v${vm.versionName}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "本地记账 · 数据仅保存在本机 · 不请求网络权限",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-
-            SectionTitle("数据备份")
-            SectionCard {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "导出 / 导入本应用专属的 Excel 备份（.xlsx，可用 Excel/WPS 打开）；导入按校验码自动去重",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
-                            onClick = { exportLauncher.launch("bookkeeping_backup_${LocalDate.now()}.xlsx") },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-                        ) { Text("导出 Excel 备份") }
-                        Button(
-                            onClick = { backupLauncher.launch(arrayOf("*/*")) },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
-                        ) { Text("导入 Excel 备份") }
-                    }
-                    if (vm.importing) {
-                        Spacer(Modifier.height(10.dp))
-                        LinearProgressIndicator(
-                            progress = { vm.importProgress.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    vm.statusMessage?.let {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                }
-            }
-
-            SectionTitle("关于")
-            SectionCard {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "轻记账 v${vm.versionName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "本地记账 · 数据仅保存在本机 · 不请求网络权限",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                TextButton(
-                    onClick = { showUpdateDialog = true },
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                ) { Text("检查更新") }
-            }
-            Spacer(Modifier.height(96.dp))
+            TextButton(
+                onClick = { showUpdateDialog = true },
+                modifier = Modifier.padding(horizontal = 8.dp),
+            ) { Text("检查更新") }
+        }
+        Spacer(Modifier.height(96.dp))
     }
 
     if (showUpdateDialog) {
@@ -609,12 +614,68 @@ private fun guideText(source: String): String = if (source == WechatBillParser.S
         "5. 回到本应用，点击「选择文件」选中该文件"
 }
 
+/**
+ * 设置分组折叠卡片：点击标题行展开/收起内容，右侧小箭头旋转指示。
+ * [initiallyExpanded] 控制默认开合（展开状态在重组/旋转屏幕间保留）。
+ */
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+private fun CollapsibleSection(
+    title: String,
+    emoji: String,
+    initiallyExpanded: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    val chevron by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "settingsChevron",
+    )
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "$emoji  $title",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "收起" else "展开",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.rotate(chevron),
+            )
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            ) + fadeIn(),
+            exit = shrinkVertically(
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            ) + fadeOut(),
+        ) {
+            Column(content = content)
+        }
+    }
+}
+
+/** 折叠卡片内部分组之间的细分隔线 */
+@Composable
+private fun SectionDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
     )
 }
 
