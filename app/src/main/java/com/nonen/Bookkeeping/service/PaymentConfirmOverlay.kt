@@ -8,20 +8,28 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.nonen.Bookkeeping.core.Categories
 
 /**
  * 自动记账确认卡片（悬浮窗）。
  *
- * 半自动模式：检测到交易后不再静默入库，而是弹出这张卡片让用户核对登记信息，
- * 点「记一笔」才写库，「忽略」后由管线进入免打扰期，不再弹同一笔。
+ * 半自动模式：检测到交易后不再静默入库，而是弹出这张卡片让用户核对并**编辑**登记信息——
+ * 方向可切换、金额可见、交易对象/备注可直接输入、分类点击展开宫格选择（跟随收支方向），
+ * 点「记一笔」按卡片上的最终值入库，「忽略」后由管线进入免打扰期。
  *
- * 需要「显示在其他应用上层」权限（Settings.canDrawOverlays），无权限时由管线发通知引导授权。
- * 窗口不获焦（不抢微信/支付宝的输入与返回键），触摸按钮仍然有效；新卡片会替换旧卡片（按忽略处理）。
+ * 需要「显示在其他应用上层」权限；不以标准权限查询为前置门槛（MIUI/HyperOS 误报），
+ * addView 被拒时回调 [onError] 降级。
+ * 窗口默认不获焦（不抢支付应用的输入）；点输入框时切换为可获焦并把卡片移到顶部，
+ * 输入法弹出后可正常打字，失焦或操作完成自动还原到底部。新卡片会替换旧卡片（按忽略处理）。
  * 30 秒无操作自动消失。
  */
 object PaymentConfirmOverlay {
@@ -33,13 +41,13 @@ object PaymentConfirmOverlay {
     private const val TEXT_SECONDARY = 0x99FFFFFF.toInt()
     private const val TEXT_DISABLED = 0x66FFFFFF.toInt()
 
-    /** 待确认的一笔交易（展示数据已备好，方向可在卡片上切换） */
+    /** 待确认的一笔交易（展示初值，卡片上可修改） */
     class Card(
         val sourceLabel: String,      // 来源应用：微信 / 支付宝
         val amountText: String,       // 已格式化金额，如 ¥12.00
         val isIncome: Boolean,        // 初始方向
-        val counterparty: String?,    // 对方 / 商户
-        val description: String?,     // 说明
+        val counterparty: String?,    // 对方 / 商户初值
+        val description: String?,     // 备注初值
         val categoryExpense: String,  // 预测分类（支出）
         val categoryIncome: String,   // 预测分类（收入）
         val timeText: String,         // 入账时间展示
@@ -54,16 +62,13 @@ object PaymentConfirmOverlay {
 
     /**
      * 弹出确认卡片；同一时间只有一张，重复调用会替换旧的（旧卡按「忽略」处理）。
-     *
-     * 不以 [canShow]（标准权限查询）为前置门槛——MIUI/HyperOS 的「显示悬浮窗」开关
-     * 与标准查询存在不同步（误报未授权），直接尝试 addView，失败才回调 [onError]
-     * 走降级提醒。30 秒无操作自动消失。
+     * [onConfirm] 参数：方向、卡片上修改后的交易对象、备注、分类。
      */
     @Synchronized
     fun show(
         context: Context,
         card: Card,
-        onConfirm: (Boolean) -> Unit,
+        onConfirm: (isIncome: Boolean, merchant: String?, note: String?, category: String) -> Unit,
         onDismiss: () -> Unit,
         onError: (String) -> Unit = {},
     ) {
@@ -89,7 +94,7 @@ object PaymentConfirmOverlay {
     private fun showInternal(
         app: Context,
         card: Card,
-        onConfirm: (Boolean) -> Unit,
+        onConfirm: (isIncome: Boolean, merchant: String?, note: String?, category: String) -> Unit,
         onDismiss: () -> Unit,
         onError: (String) -> Unit,
     ) {
@@ -99,8 +104,11 @@ object PaymentConfirmOverlay {
         replaced?.invoke()
 
         var isIncome = card.isIncome
-        val dp = app.resources.displayMetrics.density
-        fun dp(v: Int): Int = (v * dp).toInt()
+        var selectedCategory = if (isIncome) card.categoryIncome else card.categoryExpense
+        val density = app.resources.displayMetrics.density
+        fun dp(v: Int): Int = (v * density).toInt()
+        val wm = app.getSystemService(WindowManager::class.java)
+        val imm = app.getSystemService(InputMethodManager::class.java)
 
         fun solid(color: Int, radiusDp: Int = 12) = GradientDrawable().apply {
             setColor(color)
@@ -117,15 +125,44 @@ object PaymentConfirmOverlay {
             setTextColor(TEXT_PRIMARY)
             textSize = 14f
         }
-        fun row(labelText: String, valueView: TextView) = LinearLayout(app).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(4), 0, dp(4))
-            val l = label(labelText)
-            l.setPadding(0, 0, dp(12), 0)
-            addView(l)
-            addView(valueView)
+
+        // ---- 编辑模式：窗口获焦 + 卡片移到顶部（给输入法让位）----
+        var editMode = false
+        var rootRef: LinearLayout? = null
+        var paramsRef: WindowManager.LayoutParams? = null
+        var merchantRef: EditText? = null
+        var noteRef: EditText? = null
+
+        fun hideIme() {
+            rootRef?.let { imm?.hideSoftInputFromWindow(it.windowToken, 0) }
+        }
+        fun enterEdit() {
+            if (editMode) return
+            editMode = true
+            val root = rootRef ?: return
+            val p = paramsRef ?: return
+            runCatching {
+                p.flags = p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                p.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                p.y = dp(56)
+                wm?.updateViewLayout(root, p)
+            }.onFailure { android.util.Log.w("PaymentConfirmOverlay", "enterEdit failed", it) }
+        }
+        fun exitEdit() {
+            hideIme()
+            if (!editMode) return
+            editMode = false
+            val root = rootRef ?: return
+            val p = paramsRef ?: return
+            runCatching {
+                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                p.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                p.y = dp(72)
+                wm?.updateViewLayout(root, p)
+            }.onFailure { android.util.Log.w("PaymentConfirmOverlay", "exitEdit failed", it) }
         }
 
+        // ---- 标题 ----
         val titleRow = LinearLayout(app).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(label("自动记账 · 请确认"))
@@ -139,6 +176,7 @@ object PaymentConfirmOverlay {
             })
         }
 
+        // ---- 方向胶囊 + 金额 ----
         val expenseChip = TextView(app).apply {
             text = "支出"
             textSize = 14f
@@ -157,17 +195,78 @@ object PaymentConfirmOverlay {
             textSize = 30f
             setTypeface(typeface, Typeface.BOLD)
         }
-        val categoryView = value(card.categoryExpense)
+        val categoryView = value(selectedCategory)
+        val gridContainer = LinearLayout(app).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        val gridToggle = TextView(app).apply {
+            text = "▾"
+            setTextColor(TEXT_SECONDARY)
+            textSize = 12f
+        }
+
+        fun rebuildGrid() {
+            gridContainer.removeAllViews()
+            val cats = if (isIncome) Categories.incomeCategories else Categories.expenseCategories
+            cats.chunked(3).forEach { rowCats ->
+                val row = LinearLayout(app).apply { orientation = LinearLayout.HORIZONTAL }
+                rowCats.forEach { c ->
+                    val selected = c == selectedCategory
+                    val cell = LinearLayout(app).apply {
+                        orientation = LinearLayout.VERTICAL
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(dp(6), dp(8), dp(6), dp(8))
+                        background = solid(if (selected) COLOR_INCOME else 0x22FFFFFF.toInt(), 10)
+                        addView(TextView(app).apply {
+                            text = Categories.emoji(c)
+                            textSize = 18f
+                        })
+                        addView(TextView(app).apply {
+                            text = c
+                            textSize = 11f
+                            setTextColor(if (selected) 0xFF10250F.toInt() else TEXT_PRIMARY)
+                        })
+                        setOnClickListener {
+                            selectedCategory = c
+                            categoryView.text = c
+                            rebuildGrid()
+                            exitEdit()
+                        }
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                            marginStart = dp(6)
+                        }
+                    }
+                    row.addView(cell)
+                }
+                repeat(3 - rowCats.size) {
+                    row.addView(View(app), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                }
+                gridContainer.addView(row)
+            }
+        }
+        fun toggleGrid() {
+            if (gridContainer.visibility == View.VISIBLE) {
+                gridContainer.visibility = View.GONE
+                gridToggle.text = "▾"
+            } else {
+                rebuildGrid()
+                gridContainer.visibility = View.VISIBLE
+                gridToggle.text = "▴"
+            }
+        }
 
         fun refreshSelection() {
-            val expenseBg = if (!isIncome) solid(COLOR_INCOME) else solid(Color.TRANSPARENT)
-            val incomeBg = if (isIncome) solid(COLOR_INCOME) else solid(Color.TRANSPARENT)
             expenseChip.setTextColor(if (!isIncome) 0xFF10250F.toInt() else TEXT_DISABLED)
             incomeChip.setTextColor(if (isIncome) 0xFF10250F.toInt() else TEXT_DISABLED)
-            expenseChip.background = expenseBg
-            incomeChip.background = incomeBg
+            expenseChip.background = solid(if (!isIncome) COLOR_INCOME else Color.TRANSPARENT)
+            incomeChip.background = solid(if (isIncome) COLOR_INCOME else Color.TRANSPARENT)
             amountView.setTextColor(if (isIncome) COLOR_INCOME else COLOR_EXPENSE)
-            categoryView.text = if (isIncome) card.categoryIncome else card.categoryExpense
+            val list = if (isIncome) Categories.incomeCategories else Categories.expenseCategories
+            if (selectedCategory !in list) selectedCategory = list.first()
+            categoryView.text = selectedCategory
+            if (gridContainer.visibility == View.VISIBLE) rebuildGrid()
         }
         expenseChip.setOnClickListener {
             isIncome = false
@@ -189,6 +288,82 @@ object PaymentConfirmOverlay {
             addView(amountView)
         }
 
+        // ---- 可编辑字段：交易对象 / 备注 ----
+        fun editField(hint: String, initial: String) = EditText(app).apply {
+            setText(initial)
+            this.hint = hint
+            setHintTextColor(TEXT_DISABLED)
+            setTextColor(TEXT_PRIMARY)
+            textSize = 14f
+            maxLines = 1
+            inputType = InputType.TYPE_CLASS_TEXT
+            background = solid(0x22FFFFFF.toInt(), 10)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }
+        val merchantEdit = editField("对方 / 商户（可修改）", card.counterparty.orEmpty())
+        val noteEdit = editField("备注（可修改）", card.description.orEmpty())
+        noteEdit.imeOptions = EditorInfo.IME_ACTION_DONE
+        noteEdit.setOnEditorActionListener { v, _, _ ->
+            v.clearFocus()
+            true
+        }
+        val focusListener = View.OnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                enterEdit()
+            } else {
+                rootRef?.post {
+                    if (merchantRef?.hasFocus() != true && noteRef?.hasFocus() != true) exitEdit()
+                }
+            }
+        }
+        merchantEdit.onFocusChangeListener = focusListener
+        noteEdit.onFocusChangeListener = focusListener
+        merchantRef = merchantEdit
+        noteRef = noteEdit
+        fun wireEdit(edit: EditText) {
+            edit.setOnTouchListener { v, _ ->
+                enterEdit()
+                v.post { runCatching { imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT) } }
+                false
+            }
+        }
+        wireEdit(merchantEdit)
+        wireEdit(noteEdit)
+
+        fun editRow(labelText: String, edit: EditText) = LinearLayout(app).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+            val l = label(labelText)
+            l.setPadding(0, 0, dp(12), 0)
+            addView(l)
+            addView(edit, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+
+        fun valueRow(labelText: String, valueView: TextView) = LinearLayout(app).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(6), 0, dp(6))
+            val l = label(labelText)
+            l.setPadding(0, 0, dp(12), 0)
+            addView(l)
+            addView(valueView)
+        }
+
+        // ---- 分类（点击展开宫格）----
+        val categoryRow = LinearLayout(app).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+            setOnClickListener { toggleGrid() }
+            val l = label("分类")
+            l.setPadding(0, 0, dp(12), 0)
+            addView(l)
+            addView(categoryView)
+            addView(TextView(app).apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) })
+            addView(gridToggle)
+        }
+
+        // ---- 按钮 ----
         val buttons = LinearLayout(app).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END
@@ -216,11 +391,15 @@ object PaymentConfirmOverlay {
             })
             addView(pill("记一笔", accent = true) {
                 val finalIncome = isIncome
+                val merchant = merchantEdit.text.toString().trim().ifEmpty { null }
+                val note = noteEdit.text.toString().trim().ifEmpty { null }
+                val category = selectedCategory
                 removeCurrent()
-                onConfirm(finalIncome)
+                onConfirm(finalIncome, merchant, note, category)
             })
         }
 
+        // ---- 组装 ----
         val root = LinearLayout(app).apply {
             orientation = LinearLayout.VERTICAL
             background = solid(CARD_BG, 20)
@@ -228,10 +407,11 @@ object PaymentConfirmOverlay {
             elevation = dp(10).toFloat()
             addView(titleRow)
             addView(amountRow)
-            addView(row("对方", value(card.counterparty ?: "—")))
-            card.description?.takeIf { it.isNotBlank() }?.let { addView(row("说明", value(it.take(30)))) }
-            addView(row("分类", categoryView))
-            addView(row("时间", value(card.timeText)))
+            addView(editRow("对方", merchantEdit))
+            addView(editRow("备注", noteEdit))
+            addView(categoryRow)
+            addView(gridContainer)
+            addView(valueRow("时间", value(card.timeText)))
             addView(buttons)
         }
 
@@ -245,8 +425,11 @@ object PaymentConfirmOverlay {
         params.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         params.horizontalMargin = dp(12).toFloat() / app.resources.displayMetrics.widthPixels
         params.y = dp(72)
+        rootRef = root
+        paramsRef = params
 
         val dismiss = {
+            hideIme()
             removeCurrent()
             onDismiss()
         }
@@ -255,7 +438,7 @@ object PaymentConfirmOverlay {
         mainHandler.postDelayed(timeout, 30_000L)
 
         try {
-            app.getSystemService(WindowManager::class.java)?.addView(root, params)
+            wm?.addView(root, params)
             currentView = root
             currentDismiss = dismiss
         } catch (t: Throwable) {
