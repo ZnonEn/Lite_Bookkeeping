@@ -1,5 +1,6 @@
 package com.nonen.Bookkeeping.data.repo
 
+import com.nonen.Bookkeeping.core.RuleEngine
 import com.nonen.Bookkeeping.data.db.CategoryRuleDao
 import com.nonen.Bookkeeping.data.db.TransactionDao
 import com.nonen.Bookkeeping.data.db.TransactionEntity
@@ -54,6 +55,24 @@ class TransactionRepository(
     suspend fun getAll(): List<TransactionEntity> = dao.getAll()
 
     suspend fun getRange(start: Long, end: Long): List<TransactionEntity> = dao.getRange(start, end)
+
+    /**
+     * 按当前分类规则重算全部历史账单的分类（会覆盖手动改过的分类，自定义学习规则优先生效）。
+     * @return 实际改动了分类的条数
+     */
+    suspend fun reclassifyAll(): Int {
+        val rules = ruleDao.getAll()
+        var updated = 0
+        for (t in dao.getAll()) {
+            val text = listOfNotNull(t.merchant, t.note).joinToString(" ")
+            val category = RuleEngine.matchRules(text, t.amount > 0, rules)
+            if (category != t.category) {
+                dao.update(t.copy(category = category, updatedAt = System.currentTimeMillis()))
+                updated++
+            }
+        }
+        return updated
+    }
 
     /**
      * 用户手动修改某笔交易分类时，把该笔交易的商户/备注关键词学习为自定义规则，
