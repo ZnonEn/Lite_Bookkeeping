@@ -1,4 +1,4 @@
-package com.nonen.Bookkeeping.service
+package com.google.android.accessibility.selecttospeak
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
@@ -8,6 +8,9 @@ import android.view.accessibility.AccessibilityWindowInfo
 import com.nonen.Bookkeeping.BookkeepingApp
 import com.nonen.Bookkeeping.data.prefs.Packages
 import com.nonen.Bookkeeping.data.prefs.SettingsSnapshot
+import com.nonen.Bookkeeping.service.AutoRecordDebugStore
+import com.nonen.Bookkeeping.service.AutoRecordPipeline
+import com.nonen.Bookkeeping.service.OcrEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,13 +19,20 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * 无障碍自动记账服务：
- * 1. 监听微信/支付宝的窗口变化，对支付结果页做启发式抓取（注意：两家的支付页面对无障碍隐藏文本，
- *    窗口通道抓不到属正常，可靠来源是 [PaymentNotificationListener] 通知使用权通道）；
+ * 无障碍自动记账服务。
+ *
+ * ⚠️ 类名伪装（勿改）：微信 8.0.52+ 对不在白名单的无障碍服务返回混淆/空的节点树，
+ * 白名单按服务类名匹配。此处使用与系统「随选朗读」一致的完整类名
+ * com.google.android.accessibility.selecttospeak.SelectToSpeakService，
+ * 微信即按白名单放行、暴露完整节点（社区方案，详见 Tally 等项目）。
+ * 改名会导致微信重新隐藏内容，且用户需要重新开启无障碍服务。
+ *
+ * 职责：
+ * 1. 监听微信/支付宝的窗口变化，对支付结果页做启发式抓取（部分页面仍可能隐藏，OCR 兜底见 OcrCaptureService）；
  * 2. 旧系统的通知事件也顺带解析；
- * 3. 解析成功 → 去重 → 自动分类 → 写入本地数据库（source = auto），入库统一走 [AutoRecordPipeline]。
+ * 3. 解析成功 → 去重 → 自动分类 → 写入本地数据库（source = auto），入库统一走 AutoRecordPipeline。
  */
-class AutoRecordAccessibilityService : AccessibilityService() {
+class SelectToSpeakService : AccessibilityService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -182,7 +192,7 @@ class AutoRecordAccessibilityService : AccessibilityService() {
 
     companion object {
         @Volatile
-        var INSTANCE: AutoRecordAccessibilityService? = null
+        var INSTANCE: SelectToSpeakService? = null
             private set
 
         private val TARGET_PACKAGES = setOf(Packages.WECHAT, Packages.ALIPAY)

@@ -3,7 +3,7 @@ package com.nonen.Bookkeeping.core
 import android.content.ComponentName
 import android.content.Context
 import android.provider.Settings
-import com.nonen.Bookkeeping.service.AutoRecordAccessibilityService
+import com.google.android.accessibility.selecttospeak.SelectToSpeakService
 
 object AccessibilityUtil {
 
@@ -13,7 +13,7 @@ object AccessibilityUtil {
             context.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
         ) ?: return false
-        val expected = ComponentName(context, AutoRecordAccessibilityService::class.java).flattenToString()
+        val expected = ComponentName(context, SelectToSpeakService::class.java).flattenToString()
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 }

@@ -17,7 +17,9 @@ import com.nonen.Bookkeeping.parse.WindowCaptureAnalyzer
 object AutoRecordPipeline {
 
     private val recentSignatures = HashMap<String, Long>()
-    private const val SIGNATURE_TTL_MS = 2 * 60 * 1000L
+    // 跨通道去重窗口：通知/窗口/OCR 三条通道对同一笔的触发间隔在几秒内，60 秒足够；
+    // 太长会把「短时间内连续两笔同额支付」（公交、测试）误拦成重复
+    private const val SIGNATURE_TTL_MS = 60 * 1000L
     private const val AUTO_HASH_BUCKET_MS = 10 * 60 * 1000L
     private const val CHANNEL_ID = "auto_record"
     private const val NOTIFICATION_ID = 1001
@@ -40,7 +42,7 @@ object AutoRecordPipeline {
                 listOf(text.take(60)),
             )
         }
-        if (parsed != null) insert(context, parsed, pkg, origin, text, s)
+        if (parsed != null) insert(context, parsed, pkg, origin, text, s, listOf(text.take(60)))
     }
 
     /** 窗口文本通道（无障碍页面抓取 / OCR 屏幕识别） */
@@ -63,7 +65,7 @@ object AutoRecordPipeline {
             }
             return false
         }
-        return insert(context, parsed, pkg, origin, texts.joinToString(" "), s)
+        return insert(context, parsed, pkg, origin, texts.joinToString(" "), s, texts.take(6))
     }
 
     private suspend fun insert(
@@ -73,15 +75,17 @@ object AutoRecordPipeline {
         origin: String,
         rawText: String,
         s: SettingsSnapshot,
+        debugTexts: List<String> = emptyList(),
     ): Boolean {
-        // 跨通道短时去重：同一笔支付可能先后被通知与窗口两条通道抓到（金额+方向相同即视为同一笔）
-        val signature = "$pkg|${parsed.amount}|${parsed.isIncome}"
+        // 跨通道短时去重：同一笔支付可能先后被通知与窗口两条通道抓到。
+        // 签名带上商户：不同商户的同额支付不受影响；去重只拦截几秒内多通道重复抓取
+        val signature = "$pkg|${parsed.amount}|${parsed.isIncome}|${parsed.counterparty.orEmpty()}"
         val now = System.currentTimeMillis()
         synchronized(recentSignatures) {
             val last = recentSignatures[signature]
             if (last != null && now - last < SIGNATURE_TTL_MS) {
                 if (s.captureDebug) {
-                    AutoRecordDebugStore.record(pkg, origin, "2 分钟内已记录过同一笔，去重跳过", emptyList())
+                    AutoRecordDebugStore.record(pkg, origin, "1 分钟内已记录过同一笔，去重跳过", debugTexts)
                 }
                 return false
             }
@@ -122,7 +126,7 @@ object AutoRecordPipeline {
                 pkg,
                 origin,
                 if (inserted) "已入库：$direction ¥${parsed.amount}" else "与已存在记录重复，哈希去重跳过",
-                emptyList(),
+                debugTexts,
             )
         }
         if (inserted && s.notifyOnRecord) {

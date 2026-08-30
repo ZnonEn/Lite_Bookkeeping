@@ -74,13 +74,32 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
+    fun `支付宝支付成功页跳过优惠券与推荐位金额`() {
+        val texts = listOf(
+            "支付成功", "¥ 24.00", "杭州麦当劳城西银泰餐厅", "¥24.00",
+            "付款方式", "招商银行信用卡(3386)",
+            "本店优惠", "7.5元", "海盐椰子风味甜筒特价券", "原价10元",
+            "支付有福利", "去使用",
+            "37.7元", "双层制霸2人餐特价券", "原价67元",
+            "29元", "出神卤化鸡架单人餐特价券", "原价40.5元",
+            "关注小米生活号享更多资讯", "0元预约赢新品耳机", "完成",
+        )
+        val p = WindowCaptureAnalyzer.analyze(texts)
+        assertNotNull(p)
+        assertEquals(24.0, p!!.amount, 0.001)
+        assertEquals(false, p.isIncome)
+        assertEquals("杭州麦当劳城西银泰餐厅", p.counterparty)
+    }
+
+    @Test
     fun `无方向证据的页面不记录`() {
         assertNull(WindowCaptureAnalyzer.analyze(listOf("微信支付", "首页", "我的", "¥88.00")))
     }
 
     @Test
     fun `方向冲突的页面不记录`() {
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("支付成功", "已到账", "¥30.00")))
+        // 无支付成功页标记时，支出与收入提示词同时出现仍视为方向不明
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("扣款成功", "已到账", "¥30.00")))
     }
 
     @Test

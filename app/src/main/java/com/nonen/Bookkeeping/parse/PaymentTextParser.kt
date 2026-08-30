@@ -89,11 +89,21 @@ object WindowCaptureAnalyzer {
     // 收款方自己的页面写「待确认收款」（无人名），因此要求中间有名字才当作支出证据
     private val EXPENSE_PATTERNS = listOf(Regex("""待.{1,8}?确认收款"""))
 
+    // 支付成功页的独立金额节点提取
+    private val SUCCESS_PAGE_EXPENSE_MARKERS = setOf("支付成功", "付款成功")
+    private val SUCCESS_PAGE_INCOME_MARKERS = setOf("收款成功", "已收钱")
+    private val SUCCESS_PAGE_NOISE = setOf("完成", "返回", "付款方式", "收款方式", "本店优惠", "支付有福利")
+
     fun analyze(texts: List<String>): ParsedPayment? = analyzeDetailed(texts).first
 
     /** 解析结果 + 失败原因（原因供抓取调试面板展示） */
     fun analyzeDetailed(texts: List<String>): Pair<ParsedPayment?, String> {
         if (texts.isEmpty()) return null to "页面无文本"
+
+        // 优先走支付成功页的固定版式提取：页面下方优惠券/推荐位的数字极多，
+        // 通用正则会误抓（真实案例：实付 0.01 被记成 4.0）
+        parseSuccessPage(texts)?.let { return it to "支付成功页专用提取" }
+
         val joined = texts.joinToString(" ") { it.trim() }.replace('\n', ' ')
         val hasExpenseAnchor = EXPENSE_ANCHORS.any { joined.contains(it) }
         val hasIncomeAnchor = INCOME_ANCHORS.any { joined.contains(it) }
@@ -139,5 +149,47 @@ object WindowCaptureAnalyzer {
             counterparty = counterparty,
             description = joined.take(80),
         ) to "解析成功"
+    }
+
+    /**
+     * 支付成功页专用提取（微信/支付宝结果页版式固定）：
+     * 定位「支付成功/付款成功」等标记节点，取其下方第一个独立金额节点作为实付金额——
+     * 页面更下方的优惠券、积分、推荐位数字全部跳过；金额之后第一段纯文本作为商户。
+     * 无障碍与 OCR 抓到的都是自上而下的有序文本，顺序即版式。
+     */
+    private fun parseSuccessPage(texts: List<String>): ParsedPayment? {
+        val markerIdx = texts.indexOfFirst { t ->
+            val v = t.trim()
+            v in SUCCESS_PAGE_EXPENSE_MARKERS || v in SUCCESS_PAGE_INCOME_MARKERS
+        }
+        if (markerIdx < 0) return null
+        val isIncome = texts[markerIdx].trim() in SUCCESS_PAGE_INCOME_MARKERS
+
+        var amountIdx = -1
+        var amount = 0.0
+        for (i in markerIdx + 1 until texts.size) {
+            val m = STANDALONE_AMOUNT.find(texts[i].trim().replace(",", "")) ?: continue
+            val v = m.groupValues[1].replace(",", "").toDoubleOrNull() ?: continue
+            if (v <= 0.0 || v > 1_000_000.0) continue
+            amount = v
+            amountIdx = i
+            break
+        }
+        if (amountIdx < 0) return null
+
+        val counterparty = texts.drop(amountIdx + 1).firstNotNullOfOrNull { raw ->
+            val v0 = raw.trim()
+            if (v0.isEmpty() || v0.startsWith("¥") || v0.startsWith("￥")) return@firstNotNullOfOrNull null
+            // 「收款方：XX」这类带标签的先剥出名字，再统一做合理性校验
+            val v = COUNTERPARTY.find(v0)?.groupValues?.get(1)?.trim() ?: v0
+            val plausible = v.isNotEmpty() && !v.startsWith("¥") && !v.startsWith("￥") &&
+                v.none(Char::isDigit) && v.length in 2..25 &&
+                v !in SUCCESS_PAGE_NOISE &&
+                SUCCESS_PAGE_EXPENSE_MARKERS.none { v.contains(it) } &&
+                listOf("支付", "付款", "收款", "成功", "余额", "零钱", "说明", "优惠", "福利", "积分", "原价")
+                    .none { w -> v.contains(w) }
+            v.takeIf { plausible }
+        }
+        return ParsedPayment(amount = amount, isIncome = isIncome, counterparty = counterparty)
     }
 }
