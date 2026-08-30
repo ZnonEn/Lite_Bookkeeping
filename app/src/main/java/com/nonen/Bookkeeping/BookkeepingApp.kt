@@ -10,6 +10,7 @@ import com.nonen.Bookkeeping.data.db.CategoryRuleEntity
 import com.nonen.Bookkeeping.data.prefs.SettingsStore
 import com.nonen.Bookkeeping.data.repo.RuleRepository
 import com.nonen.Bookkeeping.data.repo.TransactionRepository
+import com.nonen.Bookkeeping.debug.CaptureDebug
 import com.nonen.Bookkeeping.parse.BillImporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,8 @@ class BookkeepingApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // 恢复「抓取调试」开关（src/debug 真实实现；主源集为空操作）
+        CaptureDebug.init(this)
     }
 }
 

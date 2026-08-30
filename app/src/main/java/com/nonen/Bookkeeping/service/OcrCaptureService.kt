@@ -26,6 +26,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.data.prefs.SettingsSnapshot
+import com.nonen.Bookkeeping.debug.CaptureDebug
 import com.nonen.Bookkeeping.parse.WindowCaptureAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -194,6 +195,11 @@ object OcrEngine {
         val service = OcrCaptureService.instance
         if (service == null || !service.isReady) {
             lastOutcome = "屏幕识别未开启"
+            CaptureDebug.recordThrottled(
+                pkg, "ocr",
+                "该应用对无障碍隐藏页面内容，屏幕识别（OCR）未开启，无法记录——请在设置里授权屏幕录制",
+                emptyList(),
+            )
             return
         }
         if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) return
@@ -217,6 +223,7 @@ object OcrEngine {
             bitmap.recycle()
         }
         val lines = visionText.text.split('\n').map { it.trim() }.filter { it.isNotBlank() }
+        CaptureDebug.record(pkg, "ocr", "OCR 抓到 ${lines.size} 段文字", lines.take(12))
         val parsed = WindowCaptureAnalyzer.analyze(lines)
         lastOutcome = if (parsed != null) {
             "${if (parsed.isIncome) "收入" else "支出"} ¥${parsed.amount}（OCR）"

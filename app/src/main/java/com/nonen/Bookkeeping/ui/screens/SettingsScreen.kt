@@ -48,6 +48,7 @@ import com.nonen.Bookkeeping.AppContainer
 import com.nonen.Bookkeeping.core.AccessibilityUtil
 import com.nonen.Bookkeeping.data.prefs.ListenScope
 import com.nonen.Bookkeeping.data.prefs.ThemeMode
+import com.nonen.Bookkeeping.debug.CaptureDebugCard
 import com.nonen.Bookkeeping.export.BackupExporter
 import com.nonen.Bookkeeping.parse.AlipayBillParser
 import com.nonen.Bookkeeping.parse.WechatBillParser
@@ -308,6 +309,8 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                         TextButton(onClick = { vm.stopOcr(context) }) { Text("停止") }
                     }
                 }
+
+                CaptureDebugCard()
             }
 
             SectionCard {
@@ -505,8 +508,9 @@ private fun SectionTitle(text: String) {
     )
 }
 
+// internal：src/debug 源集的「抓取调试」面板复用同一套卡片样式
 @Composable
-private fun SectionCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+internal fun SectionCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -517,7 +521,7 @@ private fun SectionCard(content: @Composable androidx.compose.foundation.layout.
 }
 
 @Composable
-private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+internal fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
