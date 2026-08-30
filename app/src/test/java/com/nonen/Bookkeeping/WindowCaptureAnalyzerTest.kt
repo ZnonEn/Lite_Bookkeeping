@@ -92,6 +92,37 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
+    fun `转账输入等付款前置页不记录`() {
+        // 转账输入页带「转账金额」标签但没有交易状态词——钱还没付
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("转账", "转账金额", "¥", "100.00", "添加转账说明")))
+        // 付款确认页同理
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("向商家付款", "¥4.00", "付款方式", "零钱")))
+    }
+
+    @Test
+    fun `微信账单详情页提取真实交易时间`() {
+        val p = WindowCaptureAnalyzer.analyze(
+            listOf("账单详情", "当前状态", "交易成功", "付款金额", "¥100.00", "收款方", "赵一鸣", "交易时间", "2026-08-30 12:30:05"),
+        )
+        assertNotNull(p)
+        assertEquals(100.0, p!!.amount, 0.001)
+        val expected = java.time.LocalDateTime.of(2026, 8, 30, 12, 30, 5)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        assertEquals(expected, p.timestamp)
+    }
+
+    @Test
+    fun `支付宝账单详情的方向金额合一节点`() {
+        val p = WindowCaptureAnalyzer.analyze(
+            listOf("账单详情", "交易成功", "支出4.00", "收款方", "苍南公交", "交易时间", "2026年8月30日 14:23"),
+        )
+        assertNotNull(p)
+        assertEquals(4.0, p!!.amount, 0.001)
+        assertEquals(false, p.isIncome)
+        assertEquals("苍南公交", p.counterparty)
+    }
+
+    @Test
     fun `无方向证据的页面不记录`() {
         assertNull(WindowCaptureAnalyzer.analyze(listOf("微信支付", "首页", "我的", "¥88.00")))
     }

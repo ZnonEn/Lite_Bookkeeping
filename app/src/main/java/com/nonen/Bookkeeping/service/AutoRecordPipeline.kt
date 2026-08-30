@@ -96,6 +96,10 @@ object AutoRecordPipeline {
         }
         val container = (context.applicationContext as? BookkeepingApp)?.container ?: return false
         val signed = if (parsed.isIncome) parsed.amount else -parsed.amount
+        // 账单详情页提取到真实交易时间时按原时间入账（限最近一年内，防异常值）
+        val tradeTime = parsed.timestamp
+            ?.takeIf { it in now - 370L * 24 * 60 * 60 * 1000..now + 5 * 60 * 1000 }
+            ?: now
         val entity = TransactionEntity(
             amount = signed,
             category = container.ruleEngine.categorize(
@@ -104,7 +108,7 @@ object AutoRecordPipeline {
             ),
             note = parsed.description?.takeIf { it.isNotBlank() },
             merchant = parsed.counterparty,
-            timestamp = now,
+            timestamp = tradeTime,
             source = "auto",
             rawData = JsonUtil.obj(
                 "origin" to origin,
@@ -113,7 +117,7 @@ object AutoRecordPipeline {
             ),
             // 时间按 10 分钟取桶：同一笔支付被多条路径先后抓到时哈希一致，数据库唯一哈希兜底
             hash = HashUtil.transactionHash(
-                now / AUTO_HASH_BUCKET_MS * AUTO_HASH_BUCKET_MS,
+                tradeTime / AUTO_HASH_BUCKET_MS * AUTO_HASH_BUCKET_MS,
                 signed,
                 parsed.counterparty,
                 "auto",

@@ -6,6 +6,8 @@ data class ParsedPayment(
     val isIncome: Boolean,
     val counterparty: String? = null,
     val description: String? = null,
+    /** 账单详情页等场景提取的真实交易时间；null 表示按当前时间入账 */
+    val timestamp: Long? = null,
 )
 
 /**
@@ -89,6 +91,16 @@ object WindowCaptureAnalyzer {
     // 收款方自己的页面写「待确认收款」（无人名），因此要求中间有名字才当作支出证据
     private val EXPENSE_PATTERNS = listOf(Regex("""待.{1,8}?确认收款"""))
 
+    // 状态词：证明页面上的交易「已达成」。转账/付款的输入前置页同样带金额标签，
+    // 但没有这些标志——Tally 式防误记的关键门槛
+    private val STATUS_WORDS = EXPENSE_SUCCESS + INCOME_SUCCESS + listOf("交易成功", "已入账")
+
+    // 「支出4.00」「收入25.00元」方向+金额合一的节点（支付宝账单详情常见）
+    private val DIRECTION_AMOUNT = Regex("""^(支出|收入)[¥￥]?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)元?$""")
+
+    private val TIME_LABELS = listOf("交易时间", "支付时间", "付款时间", "转账时间", "收款时间", "退款时间")
+    private val DATETIME_RE = Regex("""(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?""")
+
     // 支付成功页的独立金额节点提取
     private val SUCCESS_PAGE_EXPENSE_MARKERS = setOf("支付成功", "付款成功")
     private val SUCCESS_PAGE_INCOME_MARKERS = setOf("收款成功", "已收钱")
@@ -105,9 +117,19 @@ object WindowCaptureAnalyzer {
         parseSuccessPage(texts)?.let { return it to "支付成功页专用提取" }
 
         val joined = texts.joinToString(" ") { it.trim() }.replace('\n', ' ')
+
+        // 状态词门槛（Tally 专版专杀的核心防线）：转账/付款的输入前置页同样带金额标签，
+        // 但没有「已完成」标志。没有状态词一律不记，砍掉最大的一类误记
+        if (STATUS_WORDS.none { joined.contains(it) }) {
+            return null to "无交易状态词（可能是付款前置页或普通页面）"
+        }
+
         val hasExpenseAnchor = EXPENSE_ANCHORS.any { joined.contains(it) }
         val hasIncomeAnchor = INCOME_ANCHORS.any { joined.contains(it) }
         if (hasExpenseAnchor && hasIncomeAnchor) return null to "方向冲突：支出与收入金额标签同时出现"
+
+        // 「支出4.00」方向+金额合一的节点（支付宝账单详情常见）
+        val directionNode = texts.firstNotNullOfOrNull { DIRECTION_AMOUNT.find(it.trim())?.groupValues }
 
         // 「待XX确认收款」本身包含「确认收款」，先把它从文本中剔除再匹配收入词，
         // 避免发送方页面同时命中支出与收入证据
@@ -115,10 +137,14 @@ object WindowCaptureAnalyzer {
         val hasExpenseWord = EXPENSE_SUCCESS.any { joined.contains(it) } ||
             EXPENSE_PATTERNS.any { it.containsMatchIn(joined) }
         val hasIncomeWord = INCOME_SUCCESS.any { incomeText.contains(it) }
-        // 既无金额标签锚点、也无成功提示词的页面一律不抓，避免在普通界面误记
-        if (!hasExpenseAnchor && !hasIncomeAnchor && hasExpenseWord == hasIncomeWord) {
-            return null to if (hasExpenseWord) "方向冲突：支出与收入提示词同时出现"
-            else "未发现方向证据（无金额标签/成功提示词）"
+
+        val isIncome = when {
+            hasIncomeAnchor -> true
+            hasExpenseAnchor -> false
+            directionNode != null -> directionNode[1] == "收入"
+            hasIncomeWord && !hasExpenseWord -> true
+            hasExpenseWord && !hasIncomeWord -> false
+            else -> return null to "未发现方向证据（无金额标签/方向词）"
         }
 
         // OCR 文本常见千分位逗号（1,234.56）：金额匹配前统一去掉，避免整段失配
@@ -126,6 +152,7 @@ object WindowCaptureAnalyzer {
         val amount = texts.firstNotNullOfOrNull { AMOUNT_WITH_LABEL.find(it.replace(",", "")) }
             ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
             ?: AMOUNT_WITH_LABEL.find(joinedForAmount)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+            ?: directionNode?.get(2)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it > 0.0 }
             ?: texts.firstNotNullOfOrNull { STANDALONE_AMOUNT.find(it.trim().replace(",", "")) }
                 ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
             ?: AMOUNT_ANYWHERE.find(joinedForAmount)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
@@ -148,7 +175,36 @@ object WindowCaptureAnalyzer {
             },
             counterparty = counterparty,
             description = joined.take(80),
+            timestamp = extractTradeTime(texts),
         ) to "解析成功"
+    }
+
+    /**
+     * 账单详情页常带历史交易时间：提取真实发生时间，浏览旧账单时按原时间入账，
+     * 与账单文件导入的哈希一致、自动去重，不会产生「当前时间」的重复记录。
+     */
+    private fun extractTradeTime(texts: List<String>): Long? {
+        for (i in texts.indices) {
+            val node = texts[i].trim()
+            if (TIME_LABELS.none { node.startsWith(it) }) continue
+            val candidates = buildList {
+                add(node.substringAfter('：').substringAfter(':').trim())
+                texts.getOrNull(i + 1)?.trim()?.let { add(it) }
+            }
+            for (c in candidates) {
+                val m = DATETIME_RE.find(c) ?: continue
+                val second = m.groupValues[6].ifEmpty { "0" }.toInt()
+                return java.time.LocalDateTime.of(
+                    m.groupValues[1].toInt(),
+                    m.groupValues[2].toInt(),
+                    m.groupValues[3].toInt(),
+                    m.groupValues[4].toInt(),
+                    m.groupValues[5].toInt(),
+                    second,
+                ).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }
+        }
+        return null
     }
 
     /**
