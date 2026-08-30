@@ -505,9 +505,11 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
         CollapsibleSection(title = "分类规则", emoji = "🏷️") {
             Column(Modifier.padding(16.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(onClick = onRules) {
-                        Text("管理分类规则", color = MaterialTheme.colorScheme.secondary)
-                    }
+                    Button(
+                        onClick = onRules,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) { Text("管理分类规则") }
                     Button(
                         onClick = { showReclassifyDialog = true },
                         enabled = !vm.reclassifying,
