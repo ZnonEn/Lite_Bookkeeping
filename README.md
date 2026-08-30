@@ -10,9 +10,13 @@
 - 月份快速切换：左右箭头逐月，点击月份弹出日历直接选月
 
 ### 自动记账（实验性）
-- 基于**无障碍服务**监听支付页面、**通知使用权**监听支付结果通知，付完款自动记录
-- 本地规则引擎自动分类，手动改过分类会自动学习
-- 支付页面按窗口归属精确判定，跨通道自动去重，抓不到的页面宁可不记
+付完款自动记一笔，三条抓取通道互为兜底：
+- **无障碍服务**：只解析「支付成功」页面的固定版式（标记 → 金额 → 收款方），其余页面一律不检测，避免浏览账单时误记
+- **通知使用权**：支付完成后的系统通知（带金额）直接解析入库
+- **OCR 屏幕识别**：页面对无障碍隐藏内容时（如支付宝扫码），抓屏后用 ML Kit 中文识别兜底（需授权屏幕录制，重启后需重新授权）
+- 微信 8.0.52+ 会对第三方无障碍服务隐藏页面内容，本项目使用与系统「随选朗读」一致的服务类名以获取完整节点（社区通行做法）
+- 本地规则引擎自动分类，手动改过分类会自动学习；跨通道自动去重，抓不到的页面宁可不记
+- 已知限制：微信发红包全程没有金额信息，无法自动记录
 
 ### 统计
 - 本周 / 本月 / 本年 / 自定义区间四种周期，年→月、月→周逐级下钻
@@ -27,12 +31,18 @@
 - 搜索：关键词、收支类型、分类、时间范围多条件过滤
 - 分类规则管理：自定义关键词 → 分类映射
 - 数据备份：一键导出 JSON
+- 检查更新：应用不联网，通过系统浏览器跳转 GitHub Releases 查看新版本
 - 深色 / 浅色模式，Apple 风格界面与转场动效
+
+## 下载
+
+从 [GitHub Releases](https://github.com/ZnonEn/Lite_Bookkeeping/releases/latest) 下载最新的 APK 安装。
 
 ## 隐私
 
 - 不声明 `INTERNET` 权限，所有数据仅存于本机 Room 数据库
-- 自动记账依赖的无障碍 / 通知使用权仅用于读取支付结果文本，不做任何点击、不联网
+- 无障碍 / 通知使用权 / 屏幕录制仅用于读取支付结果文本或画面，不做任何点击、不联网
+- OCR 使用 ML Kit 离线中文模型，识别在本机完成
 
 ## 技术栈
 
@@ -41,6 +51,7 @@
 | 语言 | Kotlin 2.2 |
 | UI | Jetpack Compose（Material 3，Apple HIG 风格定制） |
 | 存储 | Room + DataStore |
+| 识别 | ML Kit 文本识别·中文（离线模型，不依赖 GMS） |
 | 架构 | 单 Activity + Navigation Compose，MVVM，Coroutines / Flow |
 | 构建 | AGP 9、Gradle 9、KSP（已配置阿里云 / 腾讯国内镜像） |
 
@@ -48,43 +59,49 @@
 
 ## 构建
 
-1. 安装最新版 Android Studio 与 JDK 17+
+1. 安装最新版 Android Studio（内置的 JDK 21 即可）
 2. 克隆本仓库后用 Android Studio 打开，等待 Gradle Sync 完成
 3. `./gradlew assembleDebug` 构建调试包，或直接在 Android Studio 中运行
 
 ```bash
 git clone https://github.com/ZnonEn/Lite_Bookkeeping.git
-cd Bookkeeping
+cd Lite_Bookkeeping
 ./gradlew assembleDebug
 ```
 
 ## 项目结构
 
 ```
-app/src/main/java/com/nonen/Bookkeeping/
-├── core/          # 分类规则引擎、哈希、通用工具
-├── data/
-│   ├── db/        # Room 实体与 DAO
-│   ├── prefs/     # DataStore 设置
-│   └── repo/      # 仓库层
-├── parse/         # 微信/支付宝账单解析、窗口/通知文本解析、导入器
-├── service/       # 无障碍自动记账、通知使用权监听
-├── ui/
-│   ├── components/  # 通用组件（分段控件、账单行等）
-│   ├── motion/      # 动效（弹簧、按压缩放）
-│   ├── screens/     # 主页 / 统计 / 设置 / 记一笔 / 搜索 / 规则
-│   └── theme/       # 配色与字体（深浅双主题）
-└── export/        # JSON 备份导出
+app/src/main/java/
+├── com/google/android/accessibility/selecttospeak/
+│                 # 无障碍服务本体（类名伪装为系统「随选朗读」，勿改）
+└── com/nonen/Bookkeeping/
+    ├── core/        # 分类规则引擎、哈希、通用工具
+    ├── data/
+    │   ├── db/      # Room 实体与 DAO
+    │   ├── prefs/   # DataStore 设置
+    │   └── repo/    # 仓库层
+    ├── debug/       # 抓取调试统一入口（主源集为空实现，test 分支 src/debug 源集提供真实实现）
+    ├── parse/       # 微信/支付宝账单解析、支付成功页文本解析、导入器
+    ├── service/     # 无障碍自动记账、通知使用权监听、OCR 屏幕识别
+    ├── ui/
+    │   ├── components/  # 通用组件（分段控件、账单行等）
+    │   ├── motion/      # 动效（弹簧、按压缩放）
+    │   ├── screens/     # 主页 / 统计 / 设置 / 记一笔 / 搜索 / 规则
+    │   └── theme/       # 配色与字体（深浅双主题）
+    └── export/      # JSON 备份导出
 ```
 
 ## 分支说明
 
-- `main`：稳定分支，日常使用构建此分支
-- `test`：调试分支，包含自动记账的抓取调试面板等排查工具
+- `main`：稳定分支，日常使用构建此分支，不含任何调试功能
+- `test`：`main` + `app/src/debug/` 源集形式的抓取调试模块（记录无障碍事件心跳、各通道抓取文本与解析结论，设置页实时报告）
+  - 调试模块只在 **debug 构建**（`./gradlew assembleDebug` 或 Android Studio Run）生效，release 构建不包含
+  - 合并方向保持 `main` → `test`，不要把 `test` 合回 `main`；两分支共享代码保持完全一致
 
 ## 状态
 
-v0.1beta，个人项目，仍在迭代中。
+v0.2pre，个人项目，仍在迭代中。
 
 ## 许可
 
