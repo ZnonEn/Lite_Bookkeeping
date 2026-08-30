@@ -57,7 +57,8 @@ object AutoRecordPipeline {
         if (parsed == null) {
             if (s.captureDebug) {
                 val preview = texts.take(12)
-                if (reason.startsWith("未发现方向证据")) {
+                // 浏览类页面的拒绝原因高频出现，限流防刷屏
+                if (reason.startsWith("未发现方向证据") || reason.startsWith("非支付成功页")) {
                     AutoRecordDebugStore.recordThrottled(pkg, origin, reason, preview)
                 } else {
                     AutoRecordDebugStore.record(pkg, origin, reason, preview)

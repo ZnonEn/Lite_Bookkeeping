@@ -2,11 +2,11 @@ package com.nonen.Bookkeeping
 
 import com.nonen.Bookkeeping.parse.WindowCaptureAnalyzer
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
-/** 按真实支付完成页/账单详情页的文本节点验证启发式抓取 */
+/** 只抓取支付成功页：成功页解析正确性 + 其余页面一律不检测 */
 class WindowCaptureAnalyzerTest {
 
     @Test
@@ -27,50 +27,11 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
-    fun `账单详情页标签与数值分离节点`() {
-        val p = WindowCaptureAnalyzer.analyze(listOf("账单详情", "当前状态", "交易成功", "付款金额", "¥100.00", "收款方", "赵一鸣"))
-        assertNotNull(p)
-        assertEquals(100.0, p!!.amount, 0.001)
-        assertEquals(false, p.isIncome)
-    }
-
-    @Test
-    fun `退款页识别为收入`() {
-        val p = WindowCaptureAnalyzer.analyze(listOf("退款成功", "退款金额", "¥50.00"))
-        assertNotNull(p)
-        assertEquals(50.0, p!!.amount, 0.001)
-        assertEquals(true, p.isIncome)
-    }
-
-    @Test
-    fun `人民币符号与数字分离的节点也能提取金额`() {
-        val p = WindowCaptureAnalyzer.analyze(listOf("付款成功", "¥", "8.35", "收款方：便利店"))
-        assertNotNull(p)
-        assertEquals(8.35, p!!.amount, 0.001)
-    }
-
-    @Test
     fun `微信聊天内转账成功页`() {
         val p = WindowCaptureAnalyzer.analyze(listOf("支付成功", "待小号确认收款", "¥", "0.01", "完成"))
         assertNotNull(p)
         assertEquals(0.01, p!!.amount, 0.001)
         assertEquals(false, p.isIncome)
-    }
-
-    @Test
-    fun `聊天气泡与列表预览不作为记账依据`() {
-        // 聊天页/列表页的转账气泡会长期存在，重复浏览会产生重复记录——真正的
-        // 转账记录来自支付成功页与账单详情页，气泡缺支付上下文一律不记
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信转账", "¥0.01", "待对方确认收款")))
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信(1)", "小号", "[转账] 已退还", "微信支付", "已支付¥0.01")))
-    }
-
-    @Test
-    fun `转账收款确认页识别为收入`() {
-        val p = WindowCaptureAnalyzer.analyze(listOf("小号", "¥0.01", "待确认收款", "立即收款", "退还"))
-        assertNotNull(p)
-        assertEquals(0.01, p!!.amount, 0.001)
-        assertEquals(true, p.isIncome)
     }
 
     @Test
@@ -92,68 +53,35 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
-    fun `转账输入等付款前置页不记录`() {
-        // 转账输入页带「转账金额」标签但没有交易状态词——钱还没付
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("转账", "转账金额", "¥", "100.00", "添加转账说明")))
-        // 付款确认页同理
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("向商家付款", "¥4.00", "付款方式", "零钱")))
-    }
-
-    @Test
-    fun `微信账单详情页提取真实交易时间`() {
-        val p = WindowCaptureAnalyzer.analyze(
-            listOf("账单详情", "当前状态", "交易成功", "付款金额", "¥100.00", "收款方", "赵一鸣", "交易时间", "2026-08-30 12:30:05"),
-        )
+    fun `人民币符号与数字分离的节点也能提取金额`() {
+        val p = WindowCaptureAnalyzer.analyze(listOf("付款成功", "¥", "8.35", "收款方：便利店"))
         assertNotNull(p)
-        assertEquals(100.0, p!!.amount, 0.001)
-        val expected = java.time.LocalDateTime.of(2026, 8, 30, 12, 30, 5)
-            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        assertEquals(expected, p.timestamp)
+        assertEquals(8.35, p!!.amount, 0.001)
     }
 
     @Test
-    fun `支付宝账单详情的方向金额合一节点`() {
-        val p = WindowCaptureAnalyzer.analyze(
-            listOf("账单详情", "交易成功", "支出4.00", "收款方", "苍南公交", "交易时间", "2026年8月30日 14:23"),
-        )
-        assertNotNull(p)
-        assertEquals(4.0, p!!.amount, 0.001)
-        assertEquals(false, p.isIncome)
-        assertEquals("苍南公交", p.counterparty)
-    }
-
-    @Test
-    fun `支付宝账单详情负数金额与长标签`() {
-        // 真实详情页：金额为「-0.01」负数节点，商户为「收款方全称」长标签
-        val p = WindowCaptureAnalyzer.analyze(
-            listOf(
-                "账单详情", "科蕊小吃店", "-0.01", "交易成功",
-                "支付时间", "2026-08-30 14:23:20", "付款方式", "招商银行储蓄卡(1186)",
-                "商品说明", "科蕊小吃店消费", "收款方全称", "苍南县科蕊小吃店",
-            ),
-        )
-        assertNotNull(p)
-        assertEquals(0.01, p!!.amount, 0.001)
-        assertEquals(false, p.isIncome)
-        assertEquals("苍南县科蕊小吃店", p.counterparty)
-        val expected = java.time.LocalDateTime.of(2026, 8, 30, 14, 23, 20)
-            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        assertEquals(expected, p.timestamp)
-    }
-
-    @Test
-    fun `无方向证据的页面不记录`() {
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信支付", "首页", "我的", "¥88.00")))
-    }
-
-    @Test
-    fun `方向冲突的页面不记录`() {
-        // 无支付成功页标记时，支出与收入提示词同时出现仍视为方向不明
-        assertNull(WindowCaptureAnalyzer.analyze(listOf("扣款成功", "已到账", "¥30.00")))
-    }
-
-    @Test
-    fun `无金额不记录`() {
+    fun `成功页缺金额不记录`() {
         assertNull(WindowCaptureAnalyzer.analyze(listOf("支付成功", "支付方式", "零钱")))
+    }
+
+    @Test
+    fun `非支付成功页一律不检测`() {
+        // 聊天列表/消息预览
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信(1)", "小号", "[转账] 已退还", "微信支付", "已支付¥0.01")))
+        // 账单详情页
+        assertNull(
+            WindowCaptureAnalyzer.analyze(
+                listOf(
+                    "账单详情", "科蕊小吃店", "-0.01", "交易成功", "支付时间", "2026-08-30 14:23:20",
+                    "付款方式", "招商银行储蓄卡(1186)", "收款方全称", "苍南县科蕊小吃店",
+                ),
+            )
+        )
+        // 红包详情页
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("小二的红包", "0.01", "元", "已存入零钱")))
+        // 转账输入等付款前置页
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("转账", "转账金额", "¥", "100.00", "添加转账说明")))
+        // 普通浏览页面
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信支付", "首页", "我的", "¥88.00")))
     }
 }
