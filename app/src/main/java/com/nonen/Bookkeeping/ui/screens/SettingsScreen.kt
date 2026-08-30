@@ -85,6 +85,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     var captureDebug by mutableStateOf(false)
     var debugReport by mutableStateOf<String?>(null)
         private set
+    var versionName by mutableStateOf("")
+        private set
 
     init {
         viewModelScope.launch {
@@ -97,6 +99,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             captureDebug = s.captureDebug
         }
         refreshAccessibility()
+        versionName = runCatching {
+            container.appContext.packageManager
+                .getPackageInfo(container.appContext.packageName, 0).versionName
+        }.getOrNull() ?: ""
     }
 
     fun refreshAccessibility() {
@@ -211,6 +217,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     val context = LocalContext.current
     var guideSource by remember { mutableStateOf<String?>(null) }
     var pendingSource by remember { mutableStateOf<String?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -464,14 +471,52 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
 
             SectionTitle("关于")
             SectionCard {
-                Text(
-                    "本地记账 · 数据仅保存在本机 · 不请求网络权限",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp),
-                )
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "轻记账 v${vm.versionName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "本地记账 · 数据仅保存在本机 · 不请求网络权限",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(
+                    onClick = { showUpdateDialog = true },
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) { Text("检查更新") }
             }
             Spacer(Modifier.height(96.dp))
+    }
+
+    if (showUpdateDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text("检查更新") },
+            text = {
+                Column {
+                    Text("当前版本：v${vm.versionName}")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "为保护隐私，应用不申请网络权限，因此不会自动检查更新。" +
+                            "获取最新版本请前往 GitHub Releases 页面手动查看与下载。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateDialog = false }) { Text("取消") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUpdateDialog = false
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE_URL)))
+                }) { Text("前往 Releases") }
+            },
+        )
     }
 
     guideSource?.let { source ->
@@ -490,6 +535,9 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
         )
     }
 }
+
+/** GitHub Releases 页（自动重定向到最新版本），由系统浏览器打开，应用自身不联网 */
+private const val RELEASE_PAGE_URL = "https://github.com/ZnonEn/Lite_Bookkeeping/releases/latest"
 
 private fun guideText(source: String): String = if (source == WechatBillParser.SOURCE) {
     "1. 打开微信：我 → 服务 → 钱包 → 账单\n" +
