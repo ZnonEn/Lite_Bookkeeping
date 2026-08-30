@@ -76,6 +76,8 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var notificationAccessEnabled by mutableStateOf(false)
         private set
+    var overlayPermissionEnabled by mutableStateOf(false)
+        private set
     var ocrRunning by mutableStateOf(false)
         private set
     var ocrStatus by mutableStateOf("尚未运行")
@@ -104,6 +106,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         notificationAccessEnabled = androidx.core.app.NotificationManagerCompat
             .getEnabledListenerPackages(container.appContext)
             .contains(container.appContext.packageName)
+        overlayPermissionEnabled = android.provider.Settings.canDrawOverlays(container.appContext)
         ocrRunning = OcrCaptureService.instance?.isReady == true
         ocrStatus = OcrEngine.lastOutcome
     }
@@ -245,8 +248,8 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
             SectionTitle("自动记账")
             SectionCard {
                 ToggleRow(
-                    title = "启用无障碍自动记账",
-                    subtitle = "监听支付通知与账单页面，自动记录收支",
+                    title = "启用自动记账",
+                    subtitle = "检测到支付时弹出确认卡片，手动确认后登记入账",
                     checked = vm.autoRecord,
                     onChecked = vm::updateAutoRecord,
                 )
@@ -261,6 +264,25 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                         onClick = { context.startActivity(Intent(SystemSettings.ACTION_ACCESSIBILITY_SETTINGS)) },
                         modifier = Modifier.padding(horizontal = 8.dp),
                     ) { Text("去开启无障碍服务") }
+                }
+                if (vm.accessibilityEnabled && !vm.overlayPermissionEnabled) {
+                    Text(
+                        "确认卡片需要「显示在其他应用上层」权限，未授权时检测到支付只会收到提醒通知",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    TextButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(
+                                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}"),
+                                ),
+                            )
+                        },
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    ) { Text("去授权悬浮窗") }
                 }
                 if (vm.accessibilityEnabled && !vm.notificationAccessEnabled) {
                     Text(

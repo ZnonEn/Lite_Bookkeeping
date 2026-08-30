@@ -7,6 +7,8 @@
     <!-- 屏幕识别（OCR）兜底通道：支付页面对无障碍隐藏时抓屏识别 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- 自动记账确认卡片：检测到支付后在其他应用上方弹出确认悬浮窗 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".BookkeepingApp"
