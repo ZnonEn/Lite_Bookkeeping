@@ -101,6 +101,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var versionName by mutableStateOf("")
         private set
+    var reclassifying by mutableStateOf(false)
+        private set
+    var reclassifyResult by mutableStateOf<String?>(null)
 
     init {
         viewModelScope.launch {
@@ -163,6 +166,17 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun updateThemeMode(v: ThemeMode) {
         themeMode = v
         viewModelScope.launch { settings.setThemeMode(v) }
+    }
+
+    /** 按当前分类规则重算全部历史账单的分类（覆盖手动改过的分类，学习规则优先） */
+    fun reclassifyAll() {
+        if (reclassifying) return
+        viewModelScope.launch {
+            reclassifying = true
+            val changed = container.transactionRepository.reclassifyAll()
+            reclassifying = false
+            reclassifyResult = "已按当前规则重算，更新 $changed 条"
+        }
     }
 
     fun importFromUri(uri: Uri, source: String) {
@@ -262,6 +276,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     var guideSource by remember { mutableStateOf<String?>(null) }
     var pendingSource by remember { mutableStateOf<String?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showReclassifyDialog by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -488,8 +503,26 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
         }
 
         CollapsibleSection(title = "分类规则", emoji = "🏷️") {
-            TextButton(onClick = onRules, modifier = Modifier.padding(horizontal = 8.dp)) {
-                Text("管理分类规则", color = MaterialTheme.colorScheme.secondary)
+            Column(Modifier.padding(16.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = onRules) {
+                        Text("管理分类规则", color = MaterialTheme.colorScheme.secondary)
+                    }
+                    Button(
+                        onClick = { showReclassifyDialog = true },
+                        enabled = !vm.reclassifying,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                    ) { Text(if (vm.reclassifying) "正在重算…" else "重新分类历史账单") }
+                }
+                vm.reclassifyResult?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
 
@@ -576,6 +609,21 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                     showUpdateDialog = false
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE_URL)))
                 }) { Text("前往 Releases") }
+            },
+        )
+    }
+
+    if (showReclassifyDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showReclassifyDialog = false },
+            title = { Text("重新分类历史账单") },
+            text = { Text("将按当前规则重算所有账单的分类，会覆盖手动改过的分类（手动学习产生的自定义规则仍然优先）。确定执行？") },
+            dismissButton = { TextButton(onClick = { showReclassifyDialog = false }) { Text("取消") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReclassifyDialog = false
+                    vm.reclassifyAll()
+                }) { Text("确定") }
             },
         )
     }

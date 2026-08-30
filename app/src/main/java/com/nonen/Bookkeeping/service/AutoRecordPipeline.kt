@@ -153,9 +153,9 @@ object AutoRecordPipeline {
         PaymentConfirmOverlay.show(
             context,
             card,
-            onConfirm = { finalIncome ->
+            onConfirm = { finalIncome, merchant, note, category ->
                 synchronized(dismissedSignatures) { dismissedSignatures[signature] = System.currentTimeMillis() }
-                confirmInsert(context.applicationContext, parsed, pkg, origin, finalIncome)
+                confirmInsert(context.applicationContext, parsed, pkg, origin, finalIncome, merchant, note, category)
             },
             onDismiss = {
                 synchronized(dismissedSignatures) { dismissedSignatures[signature] = System.currentTimeMillis() }
@@ -174,8 +174,17 @@ object AutoRecordPipeline {
             ?.takeIf { it in now - 370L * 24 * 60 * 60 * 1000..now + 5 * 60 * 1000 }
             ?: now
 
-    /** 用户在确认卡片点「记一笔」后入库 */
-    private fun confirmInsert(context: Context, parsed: ParsedPayment, pkg: String, origin: String, isIncome: Boolean) {
+    /** 用户在确认卡片点「记一笔」后入库；交易对象/备注/分类以卡片上修改后的值为准 */
+    private fun confirmInsert(
+        context: Context,
+        parsed: ParsedPayment,
+        pkg: String,
+        origin: String,
+        isIncome: Boolean,
+        merchant: String?,
+        note: String?,
+        category: String,
+    ) {
         scope.launch {
             val container = (context.applicationContext as? BookkeepingApp)?.container ?: return@launch
             val tradeTime = effectiveTradeTime(parsed, System.currentTimeMillis())
@@ -184,28 +193,33 @@ object AutoRecordPipeline {
                 CaptureDebug.record(pkg, origin, "确认入库时发现已有同额相近记录，跳过", emptyList())
                 return@launch
             }
+            val finalMerchant = merchant?.takeIf { it.isNotBlank() }
+            val finalNote = note?.takeIf { it.isNotBlank() }
+            val finalCategory = category.ifBlank {
+                container.ruleEngine.categorize(
+                    listOfNotNull(finalMerchant, finalNote).joinToString(" "),
+                    isIncome,
+                )
+            }
             val signed = if (isIncome) parsed.amount else -parsed.amount
             val entity = TransactionEntity(
                 amount = signed,
-                category = container.ruleEngine.categorize(
-                    listOfNotNull(parsed.counterparty, parsed.description).joinToString(" "),
-                    isIncome,
-                ),
-                note = parsed.description?.takeIf { it.isNotBlank() },
-                merchant = parsed.counterparty,
+                category = finalCategory,
+                note = finalNote,
+                merchant = finalMerchant,
                 timestamp = tradeTime,
                 source = "auto",
                 rawData = JsonUtil.obj(
                     "origin" to origin,
                     "package" to pkg,
-                    "text" to (parsed.description ?: ""),
+                    "text" to (finalNote ?: parsed.description ?: ""),
                     "confirmed" to true,
                 ),
                 // 时间按 10 分钟取桶：同一笔支付被多条路径先后抓到时哈希一致，数据库唯一哈希兜底
                 hash = HashUtil.transactionHash(
                     tradeTime / AUTO_HASH_BUCKET_MS * AUTO_HASH_BUCKET_MS,
                     signed,
-                    parsed.counterparty,
+                    finalMerchant,
                     "auto",
                 ),
             )
@@ -213,7 +227,7 @@ object AutoRecordPipeline {
             if (inserted) {
                 CaptureDebug.record(
                     pkg, origin,
-                    "已确认入库：${if (isIncome) "收入" else "支出"} ¥${parsed.amount}",
+                    "已确认入库：${if (isIncome) "收入" else "支出"} ¥${parsed.amount} → $finalCategory",
                     emptyList(),
                 )
                 if (container.settings.snapshot().notifyOnRecord) {
