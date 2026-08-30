@@ -50,14 +50,20 @@ class AppContainer(val appContext: Context) {
     val billImporter = BillImporter(transactionRepository, ruleEngine)
 
     init {
-        // 首次启动播种内置分类规则
+        // 播种内置分类规则：首次启动全量；升级时移除被重新归类的旧映射（RETIRED_RULES），
+        // 再增量补种新增关键词（不动用户删过的其他内置规则与自定义规则）
         applicationScope.launch {
-            if (ruleDao.getAll().isEmpty()) {
-                ruleDao.insertAll(
-                    Categories.defaultRules().map { (keyword, category) ->
-                        CategoryRuleEntity(keyword = keyword, category = category, isCustom = false)
-                    }
-                )
+            val existing = ruleDao.getAll().map { it.keyword to it.category }.toSet()
+            Categories.RETIRED_RULES.forEach { (keyword, category) ->
+                if ((keyword to category) in existing) ruleDao.deleteBuiltin(keyword, category)
+            }
+            val missing = Categories.defaultRules()
+                .filter { (keyword, category) -> (keyword to category) !in existing }
+                .map { (keyword, category) ->
+                    CategoryRuleEntity(keyword = keyword, category = category, isCustom = false)
+                }
+            if (missing.isNotEmpty()) {
+                ruleDao.insertAll(missing)
             }
         }
     }
