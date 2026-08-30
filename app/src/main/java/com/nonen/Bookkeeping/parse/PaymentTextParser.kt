@@ -95,6 +95,15 @@ object WindowCaptureAnalyzer {
     // 但没有这些标志——Tally 式防误记的关键门槛
     private val STATUS_WORDS = EXPENSE_SUCCESS + INCOME_SUCCESS + listOf("交易成功", "已入账")
 
+    // 支付上下文词：只有支付类页面才有的结构性词。微信主界面/聊天列表的消息预览
+    // （如「已支付¥0.01」「[转账] 已退还」）也含状态词与金额，但没有这些词——
+    // 缺支付上下文的页面（浏览页/列表页）一律不解析，防止把浏览行为记成收支
+    private val PAYMENT_CONTEXT_WORDS = listOf(
+        "付款方式", "支付方式", "收款方", "付款金额", "支付金额", "转账金额", "退款金额",
+        "收款金额", "入账金额", "交易时间", "支付时间", "账单详情", "交易详情", "转账详情",
+        "当前状态", "商家订单号", "红包金额", "已存入零钱", "零钱明细", "立即收款",
+    )
+
     // 「支出4.00」「收入25.00元」方向+金额合一的节点（支付宝账单详情常见）
     private val DIRECTION_AMOUNT = Regex("""^(支出|收入)[¥￥]?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)元?$""")
 
@@ -117,6 +126,12 @@ object WindowCaptureAnalyzer {
         parseSuccessPage(texts)?.let { return it to "支付成功页专用提取" }
 
         val joined = texts.joinToString(" ") { it.trim() }.replace('\n', ' ')
+
+        // 支付上下文门槛：聊天列表/主界面等浏览页的消息预览（已支付¥0.01、[转账]已退还）
+        // 同样带状态词与金额，但不是支付页面——没有支付结构性词一律不解析
+        if (PAYMENT_CONTEXT_WORDS.none { joined.contains(it) }) {
+            return null to "非支付页面（缺支付上下文，如聊天列表/浏览页）"
+        }
 
         // 状态词门槛（Tally 专版专杀的核心防线）：转账/付款的输入前置页同样带金额标签，
         // 但没有「已完成」标志。没有状态词一律不记，砍掉最大的一类误记

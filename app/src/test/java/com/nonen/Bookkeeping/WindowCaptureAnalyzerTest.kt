@@ -58,11 +58,11 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
-    fun `转账气泡待对方确认收款识别为支出`() {
-        val p = WindowCaptureAnalyzer.analyze(listOf("微信转账", "¥0.01", "待对方确认收款"))
-        assertNotNull(p)
-        assertEquals(0.01, p!!.amount, 0.001)
-        assertEquals(false, p.isIncome)
+    fun `聊天气泡与列表预览不作为记账依据`() {
+        // 聊天页/列表页的转账气泡会长期存在，重复浏览会产生重复记录——真正的
+        // 转账记录来自支付成功页与账单详情页，气泡缺支付上下文一律不记
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信转账", "¥0.01", "待对方确认收款")))
+        assertNull(WindowCaptureAnalyzer.analyze(listOf("微信(1)", "小号", "[转账] 已退还", "微信支付", "已支付¥0.01")))
     }
 
     @Test
