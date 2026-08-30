@@ -15,12 +15,17 @@ class BillImporter(
     private val ruleEngine: RuleEngine,
 ) {
 
-    suspend fun import(rows: List<ParsedBillRow>, source: String): ImportResult {
+    suspend fun import(
+        rows: List<ParsedBillRow>,
+        source: String,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): ImportResult {
         var success = 0
         var duplicates = 0
         var failed = 0
         var skipped = 0
-        for (row in rows) {
+        val total = rows.size
+        for ((index, row) in rows.withIndex()) {
             when {
                 row.skipped -> skipped++
                 row.timestamp == null || row.amount == null -> failed++
@@ -40,6 +45,7 @@ class BillImporter(
                     if (repository.insertIfNew(entity)) success++ else duplicates++
                 }
             }
+            onProgress(index + 1, total)
         }
         return ImportResult(success, duplicates, failed, skipped)
     }

@@ -62,6 +62,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     var themeMode by mutableStateOf(ThemeMode.SYSTEM)
     var importing by mutableStateOf(false)
         private set
+    /** -1 = 解析文件中（不定态进度），0..1 = 逐行导入进度 */
+    var importProgress by mutableStateOf(-1f)
+        private set
     var statusMessage by mutableStateOf<String?>(null)
     var accessibilityEnabled by mutableStateOf(false)
         private set
@@ -115,6 +118,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun importFromUri(uri: Uri, source: String) {
         viewModelScope.launch {
             importing = true
+            importProgress = -1f
             statusMessage = runCatching {
                 val bytes = container.appContext.contentResolver.openInputStream(uri)
                     ?.use { it.readBytes() }
@@ -126,7 +130,12 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 if (rows.none { !it.skipped }) {
                     "未从文件中解析到有效账单记录，请确认选择了正确的账单文件"
                 } else {
-                    val r = container.billImporter.import(rows, source)
+                    importProgress = 0f
+                    val total = rows.size
+                    val r = container.billImporter.import(rows, source, onProgress = { done, _ ->
+                        importProgress = done.toFloat() / total
+                    })
+                    importProgress = 1f
                     "导入完成：成功 ${r.success} 条，重复 ${r.duplicates} 条，失败 ${r.failed} 条，忽略 ${r.skipped} 条"
                 }
             }.getOrElse { "导入失败：${it.message}" }
@@ -280,7 +289,31 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                     }
                 }
                 if (vm.importing) {
-                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp))
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                        val p = vm.importProgress
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (p < 0f) {
+                                LinearProgressIndicator(Modifier.weight(1f))
+                                Text(
+                                    "解析文件…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 12.dp),
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    progress = { p.coerceIn(0f, 1f) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "导入中 ${(p.coerceIn(0f, 1f) * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 12.dp),
+                                )
+                            }
+                        }
+                    }
                 }
                 vm.statusMessage?.let {
                     Text(
