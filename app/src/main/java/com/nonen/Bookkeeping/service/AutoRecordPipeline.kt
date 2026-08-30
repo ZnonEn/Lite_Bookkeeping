@@ -31,8 +31,16 @@ object AutoRecordPipeline {
         s: SettingsSnapshot,
     ) {
         if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) return
-        val parsed = PaymentTextParser.parse(text) ?: return
-        insert(context, parsed, pkg, origin, text, s)
+        val parsed = PaymentTextParser.parse(text)
+        if (s.captureDebug) {
+            AutoRecordDebugStore.record(
+                pkg,
+                origin,
+                if (parsed != null) "通知解析成功（金额 ¥${parsed.amount}）" else "通知文本未解析出交易",
+                listOf(text.take(60)),
+            )
+        }
+        if (parsed != null) insert(context, parsed, pkg, origin, text, s)
     }
 
     /** 窗口文本通道（无障碍页面抓取 / OCR 屏幕识别） */
@@ -43,7 +51,18 @@ object AutoRecordPipeline {
         s: SettingsSnapshot,
         origin: String = "window",
     ): Boolean {
-        val parsed = WindowCaptureAnalyzer.analyze(texts) ?: return false
+        val (parsed, reason) = WindowCaptureAnalyzer.analyzeDetailed(texts)
+        if (parsed == null) {
+            if (s.captureDebug) {
+                val preview = texts.take(12)
+                if (reason.startsWith("未发现方向证据")) {
+                    AutoRecordDebugStore.recordThrottled(pkg, origin, reason, preview)
+                } else {
+                    AutoRecordDebugStore.record(pkg, origin, reason, preview)
+                }
+            }
+            return false
+        }
         return insert(context, parsed, pkg, origin, texts.joinToString(" "), s)
     }
 
@@ -60,7 +79,12 @@ object AutoRecordPipeline {
         val now = System.currentTimeMillis()
         synchronized(recentSignatures) {
             val last = recentSignatures[signature]
-            if (last != null && now - last < SIGNATURE_TTL_MS) return false
+            if (last != null && now - last < SIGNATURE_TTL_MS) {
+                if (s.captureDebug) {
+                    AutoRecordDebugStore.record(pkg, origin, "2 分钟内已记录过同一笔，去重跳过", emptyList())
+                }
+                return false
+            }
             recentSignatures[signature] = now
             if (recentSignatures.size > 128) {
                 recentSignatures.entries.removeIf { now - it.value > SIGNATURE_TTL_MS }
@@ -92,6 +116,15 @@ object AutoRecordPipeline {
             ),
         )
         val inserted = container.transactionRepository.insertIfNew(entity)
+        if (s.captureDebug) {
+            val direction = if (parsed.isIncome) "收入" else "支出"
+            AutoRecordDebugStore.record(
+                pkg,
+                origin,
+                if (inserted) "已入库：$direction ¥${parsed.amount}" else "与已存在记录重复，哈希去重跳过",
+                emptyList(),
+            )
+        }
         if (inserted && s.notifyOnRecord) {
             showRecordedNotification(context, signed, entity.category)
         }

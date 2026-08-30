@@ -217,6 +217,9 @@ object OcrEngine {
             bitmap.recycle()
         }
         val lines = visionText.text.split('\n').map { it.trim() }.filter { it.isNotBlank() }
+        if (s.captureDebug) {
+            AutoRecordDebugStore.record(pkg, "ocr", "OCR 抓到 ${lines.size} 段文字", lines.take(12))
+        }
         val parsed = WindowCaptureAnalyzer.analyze(lines)
         lastOutcome = if (parsed != null) {
             "${if (parsed.isIncome) "收入" else "支出"} ¥${parsed.amount}（OCR）"
