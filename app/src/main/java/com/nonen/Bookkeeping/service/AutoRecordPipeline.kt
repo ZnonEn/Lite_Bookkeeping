@@ -18,6 +18,11 @@ import com.nonen.Bookkeeping.parse.WindowCaptureAnalyzer
 object AutoRecordPipeline {
 
     private val recentSignatures = HashMap<String, Long>()
+    // 成功入账后的全局冷却：期间不再自动记新账单（压制同一笔支付的多通道/多页面连环抓取）
+    private const val INSERT_COOLDOWN_MS = 30_000L
+
+    @Volatile
+    private var lastInsertAt = 0L
     // 跨通道去重窗口：通知/窗口/OCR 三条通道对同一笔的触发间隔在几秒内，60 秒足够；
     // 太长会把「短时间内连续两笔同额支付」（公交、测试）误拦成重复
     private const val SIGNATURE_TTL_MS = 60 * 1000L
@@ -75,10 +80,16 @@ object AutoRecordPipeline {
         s: SettingsSnapshot,
         debugTexts: List<String> = emptyList(),
     ): Boolean {
+        val now = System.currentTimeMillis()
+        // 冷却检查放在签名去重之前，且不写入签名——冷却期被拦的这笔不该被签名记住，
+        // 冷却结束后（例如另一条通道再抓到）仍能正常入账
+        if (now - lastInsertAt < INSERT_COOLDOWN_MS) {
+            CaptureDebug.recordThrottled(pkg, origin, "已跳过：30 秒冷却期内（刚成功记录一笔）", debugTexts)
+            return false
+        }
         // 跨通道短时去重：同一笔支付可能先后被通知与窗口两条通道抓到。
         // 签名带上商户：不同商户的同额支付不受影响；去重只拦截几秒内多通道重复抓取
         val signature = "$pkg|${parsed.amount}|${parsed.isIncome}|${parsed.counterparty.orEmpty()}"
-        val now = System.currentTimeMillis()
         synchronized(recentSignatures) {
             val last = recentSignatures[signature]
             if (last != null && now - last < SIGNATURE_TTL_MS) {
@@ -128,6 +139,7 @@ object AutoRecordPipeline {
             ),
         )
         val inserted = container.transactionRepository.insertIfNew(entity)
+        if (inserted) lastInsertAt = now
         val direction = if (parsed.isIncome) "收入" else "支出"
         CaptureDebug.record(
             pkg,
