@@ -126,9 +126,8 @@ object AutoRecordPipeline {
             return false
         }
         if (!PaymentConfirmOverlay.canShow(context)) {
-            CaptureDebug.record(pkg, origin, "无悬浮窗权限，无法弹出确认卡片", debugTexts)
-            promptOverlayPermission(context)
-            return false
+            // 仅作提示参考：MIUI/HyperOS 的开关可能与标准查询不同步，后面仍会尝试直接弹卡
+            CaptureDebug.record(pkg, origin, "标准悬浮窗权限查询为未授权，仍将尝试弹出确认卡片", debugTexts)
         }
 
         val keywords = listOfNotNull(parsed.counterparty, parsed.description).joinToString(" ")
@@ -160,6 +159,10 @@ object AutoRecordPipeline {
             },
             onDismiss = {
                 synchronized(dismissedSignatures) { dismissedSignatures[signature] = System.currentTimeMillis() }
+            },
+            onError = { reason ->
+                CaptureDebug.record(pkg, origin, "确认卡片弹出失败：$reason", debugTexts)
+                promptOverlayPermission(context, reason)
             },
         )
         return true
@@ -220,8 +223,12 @@ object AutoRecordPipeline {
         }
     }
 
-    /** 检测到交易但没有悬浮窗权限时，引导用户去授权（5 分钟限流） */
-    private fun promptOverlayPermission(context: Context) {
+    /**
+     * 悬浮窗被拒/未授权时的降级提醒（5 分钟限流）。
+     * MIUI/HyperOS 除「显示悬浮窗」外还需「后台弹出界面」「锁屏显示」，
+     * 通知给出标准悬浮窗页与应用信息页两个入口。
+     */
+    private fun promptOverlayPermission(context: Context, reason: String? = null) {
         val now = System.currentTimeMillis()
         if (now - lastPermissionPromptAt < 5 * 60 * 1000L) return
         lastPermissionPromptAt = now
@@ -231,19 +238,36 @@ object AutoRecordPipeline {
             manager.createNotificationChannel(
                 android.app.NotificationChannel(channelId, "自动记账权限提醒", android.app.NotificationManager.IMPORTANCE_HIGH)
             )
-            val intent = android.content.Intent(
+            val overlayIntent = android.content.Intent(
                 android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 android.net.Uri.parse("package:${context.packageName}"),
             )
-            val pending = android.app.PendingIntent.getActivity(
-                context, 0, intent,
+            val detailsIntent = android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:${context.packageName}"),
+            )
+            val pendingOverlay = android.app.PendingIntent.getActivity(
+                context, 1, overlayIntent,
                 android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
             )
+            val pendingDetails = android.app.PendingIntent.getActivity(
+                context, 2, detailsIntent,
+                android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            val text = if (reason == null) {
+                "需要「显示在其他应用上层」权限才能弹出确认卡片，点按去开启"
+            } else {
+                "系统拒绝了悬浮窗（$reason）。请到 系统设置→应用→轻记账→权限 开启" +
+                    "「显示悬浮窗」「后台弹出界面」「锁屏显示」（MIUI/HyperOS 三项都要开）"
+            }
             val notification = android.app.Notification.Builder(context, channelId)
                 .setSmallIcon(com.nonen.Bookkeeping.R.drawable.ic_launcher_foreground)
-                .setContentTitle("检测到一笔支付，等待确认")
-                .setContentText("需要「显示在其他应用上层」权限才能弹出确认卡片，点按去开启")
-                .setContentIntent(pending)
+                .setContentTitle(if (reason == null) "检测到一笔支付，等待确认" else "检测到一笔支付，确认卡片弹出失败")
+                .setContentText(text)
+                .setStyle(android.app.Notification.BigTextStyle().bigText(text))
+                .addAction(0, "悬浮窗设置", pendingOverlay)
+                .addAction(0, "应用信息", pendingDetails)
+                .setContentIntent(pendingOverlay)
                 .setAutoCancel(true)
                 .build()
             manager.notify(PERMISSION_NOTIFICATION_ID, notification)

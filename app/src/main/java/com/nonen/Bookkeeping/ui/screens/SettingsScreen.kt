@@ -335,13 +335,14 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 8.dp),
                 ) { Text("去开启无障碍服务") }
             }
-            if (vm.accessibilityEnabled && !vm.overlayPermissionEnabled) {
-                Text(
-                    "确认卡片需要「显示在其他应用上层」权限，未授权时检测到支付只会收到提醒通知",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
+                if (vm.accessibilityEnabled && !vm.overlayPermissionEnabled) {
+                    Text(
+                        "检测到支付但没弹确认卡片？去 系统设置→应用→轻记账→权限 开启「显示悬浮窗」；" +
+                            "MIUI/HyperOS 还需开启「后台弹出界面」与「锁屏显示」（部分系统此处显示未授权但实际可用，可直接付款试试）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
                 TextButton(
                     onClick = {
                         context.startActivity(
