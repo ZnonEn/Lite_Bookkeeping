@@ -54,23 +54,42 @@ import androidx.lifecycle.viewModelScope
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.data.db.CategoryRuleEntity
 import com.nonen.Bookkeeping.data.repo.RuleRepository
+import com.nonen.Bookkeeping.data.repo.TransactionRepository
 import com.nonen.Bookkeeping.ui.theme.AppleBlue
 import com.nonen.Bookkeeping.ui.theme.InkPrimary
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class RulesViewModel(private val repo: RuleRepository) : ViewModel() {
+class RulesViewModel(
+    private val ruleRepo: RuleRepository,
+    private val transactionRepo: TransactionRepository,
+) : ViewModel() {
 
-    val rules = repo.observeAll()
+    val rules = ruleRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    var reclassifying by mutableStateOf(false)
+        private set
+    var reclassifyResult by mutableStateOf<String?>(null)
+
     fun add(keyword: String, category: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repo.add(keyword, category)) }
+        viewModelScope.launch { onResult(ruleRepo.add(keyword, category)) }
+    }
+
+    /** 按当前规则重算全部历史账单的分类（覆盖手动改过的分类） */
+    fun reclassifyAll() {
+        if (reclassifying) return
+        viewModelScope.launch {
+            reclassifying = true
+            val changed = transactionRepo.reclassifyAll()
+            reclassifying = false
+            reclassifyResult = "已重算，更新 $changed 条"
+        }
     }
 
     fun delete(id: Long) {
-        viewModelScope.launch { repo.delete(id) }
+        viewModelScope.launch { ruleRepo.delete(id) }
     }
 }
 
@@ -80,6 +99,7 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
     val rules by vm.rules.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
     var duplicateWarning by remember { mutableStateOf(false) }
+    var showReclassify by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -116,6 +136,24 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = { showReclassify = true },
+                    enabled = !vm.reclassifying,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                ) { Text(if (vm.reclassifying) "正在重算…" else "重新分类历史账单") }
+                vm.reclassifyResult?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
             if (rules.isEmpty()) {
                 Text(
                     "暂无规则",
@@ -176,6 +214,21 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
             title = { Text("无法添加") },
             text = { Text("关键词为空或该关键词的规则已存在") },
             confirmButton = { TextButton(onClick = { duplicateWarning = false }) { Text("知道了") } },
+        )
+    }
+
+    if (showReclassify) {
+        AlertDialog(
+            onDismissRequest = { showReclassify = false },
+            title = { Text("重新分类历史账单") },
+            text = { Text("将按当前规则重算所有账单的分类，会覆盖手动改过的分类（手动学习产生的自定义规则仍然优先）。确定执行？") },
+            dismissButton = { TextButton(onClick = { showReclassify = false }) { Text("取消") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReclassify = false
+                    vm.reclassifyAll()
+                }) { Text("确定") }
+            },
         )
     }
 }

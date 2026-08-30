@@ -46,11 +46,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.nonen.Bookkeeping.AppContainer
 import com.nonen.Bookkeeping.core.AccessibilityUtil
+import com.nonen.Bookkeeping.core.HashUtil
+import com.nonen.Bookkeeping.data.db.TransactionEntity
 import com.nonen.Bookkeeping.data.prefs.ListenScope
 import com.nonen.Bookkeeping.data.prefs.ThemeMode
 import com.nonen.Bookkeeping.debug.CaptureDebugCard
 import com.nonen.Bookkeeping.export.BackupExporter
 import com.nonen.Bookkeeping.parse.AlipayBillParser
+import com.nonen.Bookkeeping.parse.BackupExcelParser
 import com.nonen.Bookkeeping.parse.WechatBillParser
 import com.nonen.Bookkeeping.service.OcrCaptureService
 import com.nonen.Bookkeeping.service.OcrEngine
@@ -180,12 +183,61 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             statusMessage = runCatching {
                 val all = container.transactionRepository.getAll()
-                val json = BackupExporter.buildJson(all)
+                val bytes = BackupExporter.buildXlsx(all)
                 container.appContext.contentResolver.openOutputStream(uri)
-                    ?.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+                    ?.use { it.write(bytes) }
                     ?: error("无法写入所选文件")
-                "备份导出成功：共 ${all.size} 条记录"
+                "备份导出成功：共 ${all.size} 条记录（Excel）"
             }.getOrElse { "导出失败：${it.message}" }
+        }
+    }
+
+    /** 导入本应用导出的 Excel 备份：按校验码原样回灌，重复导入自动去重 */
+    fun importBackup(uri: Uri) {
+        viewModelScope.launch {
+            importing = true
+            importProgress = -1f
+            statusMessage = runCatching {
+                val bytes = container.appContext.contentResolver.openInputStream(uri)
+                    ?.use { it.readBytes() }
+                    ?: error("无法读取所选文件")
+                val rows = BackupExcelParser.parse(bytes)
+                    ?: error("不是本应用导出的 Excel 备份格式")
+                if (rows.isEmpty()) error("备份中没有账单记录")
+                importProgress = 0f
+                val total = rows.size
+                var success = 0
+                var duplicates = 0
+                var failed = 0
+                rows.forEachIndexed { index, row ->
+                    when {
+                        !row.typeValid || row.timestamp == null || row.amount == null -> failed++
+                        else -> {
+                            val signed = if (row.isIncome) row.amount!! else -row.amount!!
+                            val source = row.source ?: "excel"
+                            val entity = TransactionEntity(
+                                amount = signed,
+                                category = row.category
+                                    ?: container.ruleEngine.categorize(
+                                        listOfNotNull(row.merchant, row.note).joinToString(" "),
+                                        row.isIncome,
+                                    ),
+                                note = row.note,
+                                merchant = row.merchant,
+                                timestamp = row.timestamp!!,
+                                source = source,
+                                hash = row.hash
+                                    ?: HashUtil.transactionHash(row.timestamp!!, signed, row.merchant, source),
+                            )
+                            if (container.transactionRepository.insertIfNew(entity)) success++ else duplicates++
+                        }
+                    }
+                    importProgress = (index + 1).toFloat() / total
+                }
+                importProgress = 1f
+                "备份导入完成：成功 $success 条，重复 $duplicates 条，失败 $failed 条"
+            }.getOrElse { "导入失败：${it.message}" }
+            importing = false
         }
     }
 }
@@ -211,8 +263,13 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
         if (uri != null && src != null) vm.importFromUri(uri, src)
         pendingSource = null
     }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    ) { uri ->
         uri?.let { vm.exportTo(it) }
+    }
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { vm.importBackup(it) }
     }
     val projectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
@@ -430,10 +487,41 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
 
             SectionTitle("数据备份")
             SectionCard {
-                TextButton(
-                    onClick = { exportLauncher.launch("bookkeeping_backup_${LocalDate.now()}.json") },
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                ) { Text("导出 JSON 备份", color = MaterialTheme.colorScheme.secondary) }
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "导出 / 导入本应用专属的 Excel 备份（.xlsx，可用 Excel/WPS 打开）；导入按校验码自动去重",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { exportLauncher.launch("bookkeeping_backup_${LocalDate.now()}.xlsx") },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                        ) { Text("导出 Excel 备份") }
+                        Button(
+                            onClick = { backupLauncher.launch(arrayOf("*/*")) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+                        ) { Text("导入 Excel 备份") }
+                    }
+                    if (vm.importing) {
+                        Spacer(Modifier.height(10.dp))
+                        LinearProgressIndicator(
+                            progress = { vm.importProgress.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    vm.statusMessage?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
 
             SectionTitle("关于")

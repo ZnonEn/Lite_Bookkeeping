@@ -100,7 +100,7 @@ fun AppNavHost() {
         }
 
         composable(Routes.RULES) {
-            val vm: RulesViewModel = viewModel(factory = vmFactory { RulesViewModel(container.ruleRepository) })
+            val vm: RulesViewModel = viewModel(factory = vmFactory { RulesViewModel(container.ruleRepository, container.transactionRepository) })
             RulesScreen(vm = vm, onBack = { nav.popBackStack() })
         }
     }
