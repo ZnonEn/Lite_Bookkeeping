@@ -40,6 +40,7 @@ data class SettingsSnapshot(
     val notifyOnRecord: Boolean,
     val learnOnEdit: Boolean,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val captureDebug: Boolean = false,
 )
 
 class SettingsStore(private val context: Context) {
@@ -51,12 +52,14 @@ class SettingsStore(private val context: Context) {
     private val KEY_NOTIFY = booleanPreferencesKey("notify_on_record")
     private val KEY_LEARN = booleanPreferencesKey("learn_on_edit")
     private val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+    private val KEY_CAPTURE_DEBUG = booleanPreferencesKey("capture_debug")
 
     val autoRecordEnabled: Flow<Boolean> = store.data.map { it[KEY_AUTO_RECORD] ?: true }
     val listenScope: Flow<ListenScope> = store.data.map { ListenScope.from(it[KEY_LISTEN_SCOPE]) }
     val notifyOnRecord: Flow<Boolean> = store.data.map { it[KEY_NOTIFY] ?: true }
     val learnOnEdit: Flow<Boolean> = store.data.map { it[KEY_LEARN] ?: true }
     val themeMode: Flow<ThemeMode> = store.data.map { ThemeMode.from(it[KEY_THEME_MODE]) }
+    val captureDebug: Flow<Boolean> = store.data.map { it[KEY_CAPTURE_DEBUG] ?: false }
 
     suspend fun snapshot(): SettingsSnapshot = SettingsSnapshot(
         autoRecordEnabled = autoRecordEnabled.first(),
@@ -64,7 +67,10 @@ class SettingsStore(private val context: Context) {
         notifyOnRecord = notifyOnRecord.first(),
         learnOnEdit = learnOnEdit.first(),
         themeMode = themeMode.first(),
+        captureDebug = captureDebug.first(),
     )
+
+    suspend fun setCaptureDebug(value: Boolean) = store.edit { it[KEY_CAPTURE_DEBUG] = value }
 
     suspend fun setAutoRecordEnabled(value: Boolean) = store.edit { it[KEY_AUTO_RECORD] = value }
     suspend fun setListenScope(value: ListenScope) = store.edit { it[KEY_LISTEN_SCOPE] = value.name }

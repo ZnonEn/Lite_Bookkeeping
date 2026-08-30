@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,8 +52,10 @@ import com.nonen.Bookkeeping.data.prefs.ThemeMode
 import com.nonen.Bookkeeping.export.BackupExporter
 import com.nonen.Bookkeeping.parse.AlipayBillParser
 import com.nonen.Bookkeeping.parse.WechatBillParser
+import com.nonen.Bookkeeping.service.AutoRecordDebugStore
 import com.nonen.Bookkeeping.service.OcrCaptureService
 import com.nonen.Bookkeeping.service.OcrEngine
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -79,6 +82,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var ocrStatus by mutableStateOf("尚未运行")
         private set
+    var captureDebug by mutableStateOf(false)
+    var debugReport by mutableStateOf<String?>(null)
+        private set
     var versionName by mutableStateOf("")
         private set
 
@@ -90,6 +96,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             notifyOnRecord = s.notifyOnRecord
             learnOnEdit = s.learnOnEdit
             themeMode = s.themeMode
+            captureDebug = s.captureDebug
         }
         refreshAccessibility()
         versionName = runCatching {
@@ -117,6 +124,25 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         context.stopService(Intent(context, OcrCaptureService::class.java))
         OcrEngine.reset()
         refreshAccessibility()
+    }
+
+    fun updateCaptureDebug(v: Boolean) {
+        captureDebug = v
+        viewModelScope.launch { settings.setCaptureDebug(v) }
+        debugReport = if (v) {
+            AutoRecordDebugStore.buildReport(accessibilityEnabled)
+        } else {
+            null
+        }
+    }
+
+    fun refreshDebugReport() {
+        debugReport = AutoRecordDebugStore.buildReport(accessibilityEnabled)
+    }
+
+    fun clearDebugReport() {
+        AutoRecordDebugStore.clear()
+        debugReport = AutoRecordDebugStore.buildReport(accessibilityEnabled)
     }
 
     fun updateAutoRecord(v: Boolean) {
@@ -200,6 +226,14 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // 抓取调试开启时定时刷新诊断报告
+    LaunchedEffect(vm.captureDebug) {
+        while (vm.captureDebug) {
+            vm.refreshDebugReport()
+            delay(1500)
+        }
     }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -306,6 +340,30 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                     ) { Text(if (vm.ocrRunning) "重新授权屏幕录制" else "授权屏幕录制并开启") }
                     if (vm.ocrRunning) {
                         TextButton(onClick = { vm.stopOcr(context) }) { Text("停止") }
+                    }
+                }
+
+                SectionCard {
+                    ToggleRow(
+                        title = "抓取调试（排查自动记账）",
+                        subtitle = "记录无障碍抓到的页面文本与解析结论，用于定位抓不到的原因",
+                        checked = vm.captureDebug,
+                        onChecked = vm::updateCaptureDebug,
+                    )
+                    vm.debugReport?.let { report ->
+                        Text(
+                            report,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        Row(Modifier.padding(horizontal = 8.dp)) {
+                            TextButton(onClick = {
+                                val cm = context.getSystemService(android.content.ClipboardManager::class.java)
+                                cm?.setPrimaryClip(android.content.ClipData.newPlainText("capture_debug", report))
+                            }) { Text("复制诊断信息") }
+                            TextButton(onClick = vm::clearDebugReport) { Text("清空") }
+                        }
                     }
                 }
             }
