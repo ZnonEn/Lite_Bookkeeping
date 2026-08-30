@@ -158,7 +158,8 @@ private fun MainBottomBar(
                             .offset { IntOffset((pageProgress() * tabWidthPx).roundToInt(), 0) }
                             .width(with(density) { tabWidthPx.toDp() })
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(12.dp))
+                            // 同心圆角：外层 22dp - 内边距 4dp = 18dp，弧度与外层一致
+                            .clip(RoundedCornerShape(18.dp))
                             .background(pillColor),
                     )
                 }
