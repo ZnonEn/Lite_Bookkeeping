@@ -61,4 +61,25 @@ class PaymentTextParserTest {
         assertFalse(p.isIncome)
         assertEquals(25.0, p.amount, 1e-9)
     }
+
+    @Test
+    fun `labeled amount takes priority with direction`() {
+        val p = PaymentTextParser.parse("微信支付\n付款金额¥12.30\n支付方式 零钱\n交易状态 支付成功")!!
+        assertEquals(12.3, p.amount, 1e-9)
+        assertFalse(p.isIncome)
+    }
+
+    @Test
+    fun `income labeled amount`() {
+        val p = PaymentTextParser.parse("微信支付\n收款金额￥8.00\n汇总 收款8.00元")!!
+        assertEquals(8.0, p.amount, 1e-9)
+        assertTrue(p.isIncome)
+    }
+
+    @Test
+    fun `refund labeled amount is income`() {
+        val p = PaymentTextParser.parse("退款到账通知\n退款金额￥20.00\n退款方式 退回零钱")!!
+        assertEquals(20.0, p.amount, 1e-9)
+        assertTrue(p.isIncome)
+    }
 }
