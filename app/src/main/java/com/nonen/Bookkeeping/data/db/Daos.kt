@@ -29,6 +29,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE timestamp >= :start AND timestamp <= :end ORDER BY timestamp DESC")
     suspend fun getRange(start: Long, end: Long): List<TransactionEntity>
 
+    /** 语义去重用：自动记账/导入来源里，与给定金额和时间都相近的记录数 */
+    @Query(
+        "SELECT COUNT(*) FROM transactions WHERE source IN ('auto', 'wechat', 'alipay') " +
+            "AND abs(amount - :amount) < 0.005 AND timestamp BETWEEN :from AND :to"
+    )
+    suspend fun countSimilarAuto(amount: Double, from: Long, to: Long): Int
+
     @Query(
         """SELECT * FROM transactions WHERE
         (:keyword = '' OR note LIKE '%' || :keyword || '%' OR merchant LIKE '%' || :keyword || '%'

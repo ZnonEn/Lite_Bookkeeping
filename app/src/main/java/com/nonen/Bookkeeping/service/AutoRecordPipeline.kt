@@ -100,6 +100,16 @@ object AutoRecordPipeline {
         val tradeTime = parsed.timestamp
             ?.takeIf { it in now - 370L * 24 * 60 * 60 * 1000..now + 5 * 60 * 1000 }
             ?: now
+        // 语义去重：成功页/详情页/账单导入对同一笔的商户写法可能不同（科蕊小吃店 vs 苍南县科蕊小吃店），
+        // 以「同额且时间相近」判同一笔，防止浏览详情页造成重复入账
+        if (container.transactionRepository.hasSimilar(parsed.amount, tradeTime)) {
+            if (s.captureDebug) {
+                AutoRecordDebugStore.record(
+                    pkg, origin, "已存在同额且时间相近的记录（浏览详情页/多通道），判为同一笔跳过", debugTexts,
+                )
+            }
+            return false
+        }
         val entity = TransactionEntity(
             amount = signed,
             category = container.ruleEngine.categorize(

@@ -123,6 +123,25 @@ class WindowCaptureAnalyzerTest {
     }
 
     @Test
+    fun `支付宝账单详情负数金额与长标签`() {
+        // 真实详情页：金额为「-0.01」负数节点，商户为「收款方全称」长标签
+        val p = WindowCaptureAnalyzer.analyze(
+            listOf(
+                "账单详情", "科蕊小吃店", "-0.01", "交易成功",
+                "支付时间", "2026-08-30 14:23:20", "付款方式", "招商银行储蓄卡(1186)",
+                "商品说明", "科蕊小吃店消费", "收款方全称", "苍南县科蕊小吃店",
+            ),
+        )
+        assertNotNull(p)
+        assertEquals(0.01, p!!.amount, 0.001)
+        assertEquals(false, p.isIncome)
+        assertEquals("苍南县科蕊小吃店", p.counterparty)
+        val expected = java.time.LocalDateTime.of(2026, 8, 30, 14, 23, 20)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        assertEquals(expected, p.timestamp)
+    }
+
+    @Test
     fun `无方向证据的页面不记录`() {
         assertNull(WindowCaptureAnalyzer.analyze(listOf("微信支付", "首页", "我的", "¥88.00")))
     }

@@ -25,6 +25,14 @@ class TransactionRepository(
 
     fun observeRange(start: Long, end: Long): Flow<List<TransactionEntity>> = dao.observeRange(start, end)
 
+    /**
+     * 语义去重：自动记账/导入来源里是否已存在「金额相同且时间相近」的记录。
+     * 同一笔交易在成功页与详情页的商户写法可能不同（科蕊小吃店 vs 苍南县科蕊小吃店），
+     * 不能依赖商户一致，用金额+时间判同一笔。
+     */
+    suspend fun hasSimilar(amount: Double, timestamp: Long, windowMs: Long = 120_000): Boolean =
+        dao.countSimilarAuto(amount, timestamp - windowMs, timestamp + windowMs) > 0
+
     /** @return false 表示 hash 重复，已存在相同记录 */
     suspend fun insertIfNew(entity: TransactionEntity): Boolean = dao.insert(entity) != -1L
 

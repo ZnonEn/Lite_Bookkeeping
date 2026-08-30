@@ -76,9 +76,12 @@ object WindowCaptureAnalyzer {
 
     private val AMOUNT_WITH_LABEL =
         Regex("""(?:付款金额|支付金额|退款金额|收款金额|入账金额|转账金额)[^\d¥￥]{0,6}[¥￥]?\s*([0-9]+(?:\.[0-9]{1,2})?)""")
-    private val STANDALONE_AMOUNT = Regex("""^[¥￥]?\s*([0-9]+(?:\.[0-9]{1,2})?)$""")
-    private val AMOUNT_ANYWHERE = Regex("""[¥￥]\s*([0-9]+(?:\.[0-9]{1,2})?)""")
-    private val COUNTERPARTY = Regex("""(?:收款方|付款方|对方账户|对方名称|商户)[:：\s]*(\S{1,25})""")
+    private val STANDALONE_AMOUNT = Regex("""^[-–—]?[¥￥]?\s*([0-9]+(?:\.[0-9]{1,2})?)$""")
+    private val AMOUNT_ANYWHERE = Regex("""[-–—]?[¥￥]\s*([0-9]+(?:\.[0-9]{1,2})?)""")
+    // 长标签放前面，避免「收款方全称」被「收款方」截断出「全称」；(?!式) 防止「付款方式」被当标签
+    private val COUNTERPARTY = Regex(
+        """(?:收款方全称|收款方名称|对方全称|对方名称|付款方全称|商户名称|收款方|付款方|对方账户|商户)(?!式)[:：\s]*(\S{1,25})""",
+    )
 
     private val EXPENSE_ANCHORS = listOf("付款金额", "支付金额", "转账金额")
     private val INCOME_ANCHORS = listOf("退款金额", "收款金额", "入账金额")
@@ -106,6 +109,8 @@ object WindowCaptureAnalyzer {
 
     // 「支出4.00」「收入25.00元」方向+金额合一的节点（支付宝账单详情常见）
     private val DIRECTION_AMOUNT = Regex("""^(支出|收入)[¥￥]?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)元?$""")
+    // 「-0.01」「+0.01」带符号金额节点（支付宝详情页：负号=支出、正号=收入）
+    private val SIGNED_AMOUNT = Regex("""^([+＋\-–—])([0-9][0-9,]*(?:\.[0-9]{1,2})?)$""")
 
     private val TIME_LABELS = listOf("交易时间", "支付时间", "付款时间", "转账时间", "收款时间", "退款时间")
     private val DATETIME_RE = Regex("""(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?""")
@@ -145,6 +150,8 @@ object WindowCaptureAnalyzer {
 
         // 「支出4.00」方向+金额合一的节点（支付宝账单详情常见）
         val directionNode = texts.firstNotNullOfOrNull { DIRECTION_AMOUNT.find(it.trim())?.groupValues }
+        // 「-0.01」负号=支出、「+0.01」正号=收入（支付宝详情页）
+        val signedNode = texts.firstNotNullOfOrNull { SIGNED_AMOUNT.find(it.trim())?.groupValues }
 
         // 「待XX确认收款」本身包含「确认收款」，先把它从文本中剔除再匹配收入词，
         // 避免发送方页面同时命中支出与收入证据
@@ -157,6 +164,7 @@ object WindowCaptureAnalyzer {
             hasIncomeAnchor -> true
             hasExpenseAnchor -> false
             directionNode != null -> directionNode[1] == "收入"
+            signedNode != null -> signedNode[1] !in listOf("-", "–", "—")
             hasIncomeWord && !hasExpenseWord -> true
             hasExpenseWord && !hasIncomeWord -> false
             else -> return null to "未发现方向证据（无金额标签/方向词）"
@@ -168,6 +176,7 @@ object WindowCaptureAnalyzer {
             ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
             ?: AMOUNT_WITH_LABEL.find(joinedForAmount)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
             ?: directionNode?.get(2)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it > 0.0 }
+            ?: signedNode?.get(2)?.replace(",", "")?.toDoubleOrNull()?.takeIf { it > 0.0 }
             ?: texts.firstNotNullOfOrNull { STANDALONE_AMOUNT.find(it.trim().replace(",", "")) }
                 ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
             ?: AMOUNT_ANYWHERE.find(joinedForAmount)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
