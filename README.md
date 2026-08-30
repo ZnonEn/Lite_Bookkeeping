@@ -105,4 +105,4 @@ v0.2.1，个人项目，仍在迭代中。
 
 ## 许可
 
-本项目采用 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/deed.zh)（署名-非商业性使用 4.0 国际）协议授权：可自由分享与改编（须署名），**禁止用于商业目的**。完整协议文本见 [LICENSE](LICENSE)。
+本项目采用 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) 开源协议：可自由使用、修改、再分发与商用，须保留版权与协议声明。完整协议文本见 [LICENSE](LICENSE)。
