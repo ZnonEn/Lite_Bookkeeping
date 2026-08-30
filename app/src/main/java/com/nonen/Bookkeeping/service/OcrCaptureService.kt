@@ -71,17 +71,18 @@ class OcrCaptureService : Service() {
             .setOngoing(true)
             .build()
 
+        // Android 14+ 顺序要求：必须先以前台服务类型 mediaProjection 置前台，
+        // 再调 getMediaProjection()，否则系统抛 SecurityException 闪退
+        if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
         val mediaProjection = getSystemService(MediaProjectionManager::class.java)
             ?.getMediaProjection(Activity.RESULT_OK, resultData)
         if (mediaProjection == null) {
             stopSelf()
             return START_NOT_STICKY
-        }
-        // Android 14+：mediaProjection 类型的前台服务必须先取得投屏令牌再置前台
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
         }
         projection = mediaProjection
         mediaProjection.registerCallback(object : MediaProjection.Callback() {
