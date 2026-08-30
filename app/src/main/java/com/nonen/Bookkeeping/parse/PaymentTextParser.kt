@@ -88,7 +88,7 @@ object WindowCaptureAnalyzer {
 
     fun analyze(texts: List<String>): ParsedPayment? = analyzeDetailed(texts).first
 
-    /** 解析结果 + 失败原因（原因供抓取调试面板展示） */
+    /** 解析结果 + 失败原因（test 分支的调试面板会展示原因） */
     fun analyzeDetailed(texts: List<String>): Pair<ParsedPayment?, String> {
         if (texts.isEmpty()) return null to "页面无文本"
         parseSuccessPage(texts)?.let { return it to "支付成功页专用提取" }
