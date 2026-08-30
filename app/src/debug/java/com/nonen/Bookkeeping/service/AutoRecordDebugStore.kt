@@ -8,7 +8,7 @@ import java.time.format.DateTimeFormatter
 /**
  * 抓取调试：无障碍服务把最近收到的事件与扫描结论写进这里（环形缓冲），
  * 设置页的「抓取调试」面板展示并可一键复制，用于判断是「抓不到内容」还是「解析规则不匹配」。
- * 仅 test 分支存在此功能。
+ * 位于 src/debug 源集：仅 test 分支存在，debug 构建参与编译，release 构建不含此文件。
  */
 object AutoRecordDebugStore {
 

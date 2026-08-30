@@ -8,7 +8,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import com.nonen.Bookkeeping.BookkeepingApp
 import com.nonen.Bookkeeping.data.prefs.Packages
 import com.nonen.Bookkeeping.data.prefs.SettingsSnapshot
-import com.nonen.Bookkeeping.service.AutoRecordDebugStore
+import com.nonen.Bookkeeping.debug.CaptureDebug
 import com.nonen.Bookkeeping.service.AutoRecordPipeline
 import com.nonen.Bookkeeping.service.OcrEngine
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +60,7 @@ class SelectToSpeakService : AccessibilityService() {
         val e = event ?: return
         val pkg = e.packageName?.toString() ?: return
         if (pkg in TARGET_PACKAGES) {
-            AutoRecordDebugStore.onEvent(pkg)
+            CaptureDebug.onEvent(pkg)
         }
         // 事件对象在回调返回后会被系统回收，必须在同步代码里先取出所需数据
         val eventText = e.text.joinToString(" ") { it.toString() }.trim()
@@ -154,25 +154,21 @@ class SelectToSpeakService : AccessibilityService() {
         val pkg = sourcePkg
         if (pkg == null || pkg !in TARGET_PACKAGES) return
         if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) {
-            if (s.captureDebug) {
-                AutoRecordDebugStore.recordThrottled(
-                    pkg, "window", "已跳过：自动记账开关关闭或不在监听范围", emptyList(),
-                )
-            }
+            CaptureDebug.recordThrottled(
+                pkg, "window", "已跳过：自动记账开关关闭或不在监听范围", emptyList(),
+            )
             return
         }
         if (texts.isEmpty()) {
-            if (s.captureDebug) {
-                val visible = visibleWindows
-                    ?.mapNotNull { it.root?.packageName?.toString() }
-                    ?.distinct()
-                    ?.joinToString("、") { AutoRecordDebugStore.appNameOf(it) }
-                AutoRecordDebugStore.record(
-                    pkg, "window",
-                    "无障碍未抓到文本节点（对方隐藏内容或窗口不可读；可见窗口：${visible ?: "无"}）",
-                    emptyList(),
-                )
-            }
+            val visible = visibleWindows
+                ?.mapNotNull { it.root?.packageName?.toString() }
+                ?.distinct()
+                ?.joinToString("、") { CaptureDebug.appNameOf(it) }
+            CaptureDebug.record(
+                pkg, "window",
+                "无障碍未抓到文本节点（对方隐藏内容或窗口不可读；可见窗口：${visible ?: "无"}）",
+                emptyList(),
+            )
             // 微信/支付宝对无障碍隐藏了支付页内容 → OCR 抓屏兜底（内部节流）
             OcrEngine.maybeScan(applicationContext, pkg, s)
             return

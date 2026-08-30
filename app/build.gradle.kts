@@ -48,6 +48,19 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// 「抓取调试」模块：主源集的空实现（CaptureDebug.kt / CaptureDebugCard.kt）在 test 分支的
+// src/debug 源集里有真实实现（CaptureDebugImpl.kt / CaptureDebugCardImpl.kt，同名类不同文件名）。
+// Kotlin 源集没有 Java 那样的同路径去重，debug 构建时需显式排除主源集的空实现让位；
+// 实现文件不存在（main 分支）时条件不成立，配置零生效。
+if (file("src/debug/java/com/nonen/Bookkeeping/debug/CaptureDebugImpl.kt").exists()) {
+    tasks.matching { it.name == "compileDebugKotlin" }.configureEach {
+        (this as org.gradle.api.tasks.util.PatternFilterable).exclude(
+            "com/nonen/Bookkeeping/debug/CaptureDebug.kt",
+            "com/nonen/Bookkeeping/debug/CaptureDebugCard.kt",
+        )
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
