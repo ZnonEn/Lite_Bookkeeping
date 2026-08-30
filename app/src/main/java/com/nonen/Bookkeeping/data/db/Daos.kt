@@ -78,6 +78,10 @@ interface CategoryRuleDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(rules: List<CategoryRuleEntity>)
 
+    /** 删除指定关键词→分类的内置规则（分类规则升级时移除已重新归类的旧映射，不动用户自定义规则） */
+    @Query("DELETE FROM category_rules WHERE keyword = :keyword AND category = :category AND isCustom = 0")
+    suspend fun deleteBuiltin(keyword: String, category: String)
+
     @Query("DELETE FROM category_rules WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
