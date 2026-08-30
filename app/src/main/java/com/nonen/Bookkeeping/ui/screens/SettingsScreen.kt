@@ -1,6 +1,9 @@
 package com.nonen.Bookkeeping.ui.screens
 
+import android.content.Context
 import android.content.Intent
+import android.app.Activity
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +51,8 @@ import com.nonen.Bookkeeping.data.prefs.ThemeMode
 import com.nonen.Bookkeeping.export.BackupExporter
 import com.nonen.Bookkeeping.parse.AlipayBillParser
 import com.nonen.Bookkeeping.parse.WechatBillParser
+import com.nonen.Bookkeeping.service.OcrCaptureService
+import com.nonen.Bookkeeping.service.OcrEngine
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -70,6 +75,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var notificationAccessEnabled by mutableStateOf(false)
         private set
+    var ocrRunning by mutableStateOf(false)
+        private set
+    var ocrStatus by mutableStateOf("尚未运行")
+        private set
 
     init {
         viewModelScope.launch {
@@ -88,6 +97,20 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         notificationAccessEnabled = androidx.core.app.NotificationManagerCompat
             .getEnabledListenerPackages(container.appContext)
             .contains(container.appContext.packageName)
+        ocrRunning = OcrCaptureService.instance?.isReady == true
+        ocrStatus = OcrEngine.lastOutcome
+    }
+
+    fun startOcr(context: Context, resultData: Intent) {
+        context.startForegroundService(
+            Intent(context, OcrCaptureService::class.java).putExtra(OcrCaptureService.EXTRA_RESULT, resultData)
+        )
+    }
+
+    fun stopOcr(context: Context) {
+        context.stopService(Intent(context, OcrCaptureService::class.java))
+        OcrEngine.reset()
+        refreshAccessibility()
     }
 
     fun updateAutoRecord(v: Boolean) {
@@ -180,6 +203,12 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let { vm.exportTo(it) }
     }
+    val projectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            vm.startOcr(context, data)
+        }
+    }
 
     // 设置页作为 MainScreen Pager 的一页，直接输出滚动内容（底栏由 MainScreen 提供）
     Column(
@@ -236,6 +265,41 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
                         onClick = { context.startActivity(Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
                         modifier = Modifier.padding(horizontal = 8.dp),
                     ) { Text("去开启通知使用权") }
+                }
+
+                // 屏幕识别（OCR）兜底通道
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("屏幕识别（OCR 兜底）", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "通知没有金额且支付页面对无障碍隐藏时（如支付宝扫码），抓取屏幕文字识别金额与方向。需授权屏幕录制，重启手机后需重新授权",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            if (vm.ocrRunning) "状态：运行中 · ${vm.ocrStatus}" else "状态：未开启",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (vm.ocrRunning) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
+                Row(Modifier.padding(horizontal = 8.dp)) {
+                    TextButton(
+                        onClick = {
+                            context.getSystemService(MediaProjectionManager::class.java)?.let { mgr ->
+                                projectionLauncher.launch(mgr.createScreenCaptureIntent())
+                            }
+                        },
+                    ) { Text(if (vm.ocrRunning) "重新授权屏幕录制" else "授权屏幕录制并开启") }
+                    if (vm.ocrRunning) {
+                        TextButton(onClick = { vm.stopOcr(context) }) { Text("停止") }
+                    }
                 }
             }
 

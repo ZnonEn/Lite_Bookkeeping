@@ -35,15 +35,16 @@ object AutoRecordPipeline {
         insert(context, parsed, pkg, origin, text, s)
     }
 
-    /** 窗口文本通道（无障碍页面抓取） */
+    /** 窗口文本通道（无障碍页面抓取 / OCR 屏幕识别） */
     suspend fun handleWindowTexts(
         context: Context,
         pkg: String,
         texts: List<String>,
         s: SettingsSnapshot,
+        origin: String = "window",
     ): Boolean {
         val parsed = WindowCaptureAnalyzer.analyze(texts) ?: return false
-        return insert(context, parsed, pkg, "window", texts.joinToString(" "), s)
+        return insert(context, parsed, pkg, origin, texts.joinToString(" "), s)
     }
 
     private suspend fun insert(

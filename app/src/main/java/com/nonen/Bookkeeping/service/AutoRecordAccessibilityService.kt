@@ -140,7 +140,11 @@ class AutoRecordAccessibilityService : AccessibilityService() {
         val pkg = sourcePkg
         if (pkg == null || pkg !in TARGET_PACKAGES) return
         if (!s.autoRecordEnabled || pkg !in s.listenScope.packages) return
-        if (texts.isEmpty()) return
+        if (texts.isEmpty()) {
+            // 微信/支付宝对无障碍隐藏了支付页内容 → OCR 抓屏兜底（内部节流）
+            OcrEngine.maybeScan(applicationContext, pkg, s)
+            return
+        }
         AutoRecordPipeline.handleWindowTexts(applicationContext, pkg, texts, s)
     }
 

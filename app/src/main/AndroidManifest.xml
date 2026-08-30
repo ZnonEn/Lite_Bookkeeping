@@ -4,6 +4,9 @@
 
     <!-- 仅用于“自动记账成功后发一条本地提醒”，无网络、无定位权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 屏幕识别（OCR）兜底通道：支付页面对无障碍隐藏时抓屏识别 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <application
         android:name=".BookkeepingApp"
@@ -39,6 +42,10 @@
         </service>
 
         <!-- 无障碍自动记账服务 -->
+        <service
+            android:name=".service.OcrCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
         <service
             android:name=".service.AutoRecordAccessibilityService"
             android:exported="false"

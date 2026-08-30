@@ -111,12 +111,14 @@ object WindowCaptureAnalyzer {
             else "未发现方向证据（无金额标签/成功提示词）"
         }
 
-        val amount = texts.firstNotNullOfOrNull { AMOUNT_WITH_LABEL.find(it) }
-            ?.groupValues?.get(1)?.toDoubleOrNull()
-            ?: AMOUNT_WITH_LABEL.find(joined)?.groupValues?.get(1)?.toDoubleOrNull()
-            ?: texts.firstNotNullOfOrNull { STANDALONE_AMOUNT.find(it.trim()) }
-                ?.groupValues?.get(1)?.toDoubleOrNull()
-            ?: AMOUNT_ANYWHERE.find(joined)?.groupValues?.get(1)?.toDoubleOrNull()
+        // OCR 文本常见千分位逗号（1,234.56）：金额匹配前统一去掉，避免整段失配
+        val joinedForAmount = joined.replace(",", "")
+        val amount = texts.firstNotNullOfOrNull { AMOUNT_WITH_LABEL.find(it.replace(",", "")) }
+            ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+            ?: AMOUNT_WITH_LABEL.find(joinedForAmount)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+            ?: texts.firstNotNullOfOrNull { STANDALONE_AMOUNT.find(it.trim().replace(",", "")) }
+                ?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+            ?: AMOUNT_ANYWHERE.find(joinedForAmount)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
             ?: return null to "未发现金额"
         if (amount <= 0.0 || amount > 1_000_000.0) return null to "金额超出可记录范围"
 

@@ -176,7 +176,10 @@ class AddEditViewModel(
 @Composable
 fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
     if (vm.loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) { CircularProgressIndicator() }
         return
     }
 
@@ -195,7 +198,9 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
     ) {
         // 头部：返回 + 标题 + 日期胶囊
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
@@ -248,7 +253,9 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
             ) {
                 TextField(
                     value = vm.amount,
-                    onValueChange = { s -> vm.amount = s.filter { it.isDigit() || it == '.' }.take(12) },
+                    onValueChange = { s ->
+                        vm.amount = s.filter { it.isDigit() || it == '.' }.take(12)
+                    },
                     prefix = {
                         Text(
                             "¥ ",
@@ -332,7 +339,11 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
 
             vm.errorMessage?.let {
                 Spacer(Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -351,7 +362,9 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                     focusedElevation = 0.dp,
                     hoveredElevation = 0.dp,
                 ),
-                modifier = saveScale.fillMaxWidth().height(50.dp),
+                modifier = saveScale
+                    .fillMaxWidth()
+                    .height(50.dp),
             ) {
                 Text("保存", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
@@ -381,8 +394,12 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                 TextButton(onClick = {
                     state.selectedDateMillis?.let { sel ->
                         val picked = Instant.ofEpochMilli(sel).atZone(ZoneOffset.UTC).toLocalDate()
-                        val oldTime = Instant.ofEpochMilli(vm.timestamp).atZone(ZoneId.systemDefault()).toLocalTime()
-                        vm.timestamp = picked.atTime(oldTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val oldTime =
+                            Instant.ofEpochMilli(vm.timestamp).atZone(ZoneId.systemDefault())
+                                .toLocalTime()
+                        vm.timestamp =
+                            picked.atTime(oldTime).atZone(ZoneId.systemDefault()).toInstant()
+                                .toEpochMilli()
                     }
                     showDatePicker = false
                     showTimePicker = true
@@ -394,14 +411,19 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
 
     if (showTimePicker) {
         val zoned = Instant.ofEpochMilli(vm.timestamp).atZone(ZoneId.systemDefault())
-        val timeState = rememberTimePickerState(initialHour = zoned.hour, initialMinute = zoned.minute, is24Hour = true)
+        val timeState = rememberTimePickerState(
+            initialHour = zoned.hour,
+            initialMinute = zoned.minute,
+            is24Hour = true
+        )
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
             title = { Text("选择时间") },
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.timestamp = Instant.ofEpochMilli(vm.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
+                    vm.timestamp = Instant.ofEpochMilli(vm.timestamp).atZone(ZoneId.systemDefault())
+                        .toLocalDate()
                         .atTime(timeState.hour, timeState.minute)
                         .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     showTimePicker = false
@@ -426,7 +448,11 @@ private fun CategoryCell(
             .clip(RoundedCornerShape(18.dp))
             .background(if (selected) AppleBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
             .then(
-                if (selected) Modifier.border(1.dp, AppleBlue.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+                if (selected) Modifier.border(
+                    1.dp,
+                    AppleBlue.copy(alpha = 0.3f),
+                    RoundedCornerShape(18.dp)
+                )
                 else Modifier
             )
             .clickable(interactionSource = source, indication = null, onClick = onClick)
