@@ -1,7 +1,5 @@
-package com.nonen.Bookkeeping
+package com.nonen.Bookkeeping.core
 
-import com.nonen.Bookkeeping.core.Categories
-import com.nonen.Bookkeeping.core.RuleEngine
 import com.nonen.Bookkeeping.data.db.CategoryRuleEntity
 import org.junit.Assert.assertEquals
 import org.junit.Test

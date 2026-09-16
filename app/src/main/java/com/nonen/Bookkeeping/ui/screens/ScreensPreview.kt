@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nonen.Bookkeeping.stats.CategoryStat
+import com.nonen.Bookkeeping.stats.BucketLabelKind
 import com.nonen.Bookkeeping.stats.StatsBucket
 import com.nonen.Bookkeeping.ui.theme.BookkeepingTheme
 import com.nonen.Bookkeeping.ui.theme.ExpenseColor
@@ -66,9 +67,10 @@ private fun BarChartPreview() {
     BookkeepingTheme(darkTheme = true) {
         BarChart(
             buckets = listOf(
-                StatsBucket("一", 120.0), StatsBucket("二", 40.0), StatsBucket("三", 305.0),
-                StatsBucket("四", 88.0), StatsBucket("五", 220.0), StatsBucket("六", 55.0),
-                StatsBucket("日", 180.0),
+                StatsBucket(BucketLabelKind.WEEKDAY, 1, 120.0), StatsBucket(BucketLabelKind.WEEKDAY, 2, 40.0),
+                StatsBucket(BucketLabelKind.WEEKDAY, 3, 305.0), StatsBucket(BucketLabelKind.WEEKDAY, 4, 88.0),
+                StatsBucket(BucketLabelKind.WEEKDAY, 5, 220.0), StatsBucket(BucketLabelKind.WEEKDAY, 6, 55.0),
+                StatsBucket(BucketLabelKind.WEEKDAY, 0, 180.0),
             ),
             accent = ExpenseColor,
         )

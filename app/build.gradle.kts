@@ -23,9 +23,14 @@ android {
 
     buildTypes {
         release {
-            optimization {
-                enable = false
-            }
+            // 关闭 R8 会同时失去代码压缩、资源收缩与混淆，发布包体积明显偏大；
+            // 混淆规则见 proguard-rules.pro（重点是保住无障碍服务的伪装类名）
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {
@@ -34,6 +39,12 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    lint {
+        // 发布构建的致命问题直接失败，避免带病出包；警告不阻断本地开发
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = false
     }
 }
 

@@ -52,7 +52,7 @@ object CsvSupport {
 
     fun readRecords(text: String): List<List<String>> {
         val format = CSVFormat.DEFAULT.builder().setIgnoreEmptyLines(true).get()
-        return CSVParser(StringReader(text), format).use { parser ->
+        return CSVParser.parse(StringReader(text), format).use { parser ->
             parser.map { record -> record.toList() }
         }
     }

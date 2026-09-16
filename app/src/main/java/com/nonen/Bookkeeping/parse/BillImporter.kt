@@ -26,21 +26,23 @@ class BillImporter(
         var skipped = 0
         val total = rows.size
         for ((index, row) in rows.withIndex()) {
+            val timestamp = row.timestamp
+            val amount = row.amount
             when {
                 row.skipped -> skipped++
-                row.timestamp == null || row.amount == null -> failed++
+                timestamp == null || amount == null -> failed++
                 else -> {
-                    val signedAmount = if (row.isIncome) row.amount!! else -row.amount!!
+                    val signedAmount = if (row.isIncome) amount else -amount
                     val text = listOfNotNull(row.merchant, row.categoryHint, row.note).joinToString(" ")
                     val entity = TransactionEntity(
                         amount = signedAmount,
                         category = ruleEngine.categorize(text, row.isIncome),
                         note = row.note,
                         merchant = row.merchant,
-                        timestamp = row.timestamp!!,
+                        timestamp = timestamp,
                         source = source,
                         rawData = row.rawData,
-                        hash = HashUtil.transactionHash(row.timestamp!!, signedAmount, row.merchant, source),
+                        hash = HashUtil.transactionHash(timestamp, signedAmount, row.merchant, source),
                     )
                     if (repository.insertIfNew(entity)) success++ else duplicates++
                 }

@@ -104,9 +104,15 @@ object XlsxSupport {
         return rowsOut
     }
 
+    /**
+     * 解析 XML。DOCTYPE 显式禁用（防 XXE）；加固特性不被当前 XML 实现支持时
+     * 记录告警后继续——非致命，解析本身仍可用。
+     */
     private fun newDocument(bytes: ByteArray) = runCatching {
         val factory = DocumentBuilderFactory.newInstance()
-        runCatching { factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+        runCatching {
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        }.onFailure { android.util.Log.w("XlsxSupport", "XML DOCTYPE 加固未生效", it) }
         factory.newDocumentBuilder().parse(ByteArrayInputStream(bytes))
-    }.getOrNull()
+    }.onFailure { android.util.Log.w("XlsxSupport", "XML 解析失败", it) }.getOrNull()
 }

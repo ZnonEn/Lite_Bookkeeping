@@ -2,4 +2,225 @@
     <string name="app_name">轻记账</string>
     <string name="accessibility_service_label">自动记账服务</string>
     <string name="accessibility_service_description">监听微信、支付宝的支付通知与账单页面，自动记录收支明细。所有解析均在本机完成，不会上传任何数据。</string>
+
+    <!-- 通用动作 -->
+    <string name="action_back">返回</string>
+    <string name="action_cancel">取消</string>
+    <string name="dialog_pick_time">选择时间</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_next">下一步</string>
+    <string name="action_delete">删除</string>
+    <string name="action_add">添加</string>
+    <string name="action_ok">知道了</string>
+    <string name="action_expand">展开</string>
+    <string name="action_collapse">收起</string>
+
+    <!-- 底栏与导航 -->
+    <string name="tab_home">首页</string>
+    <string name="tab_statistics">统计</string>
+    <string name="tab_settings">设置</string>
+    <string name="action_add_record">记一笔</string>
+    <string name="action_search">搜索</string>
+
+    <!-- 收支方向 -->
+    <string name="type_expense">支出</string>
+    <string name="type_income">收入</string>
+
+    <!-- 首页 -->
+    <string name="home_title">轻记账</string>
+    <string name="home_month_overview">本月概览</string>
+    <string name="home_recent_seven_days">近7日</string>
+    <string name="home_empty">还没有账单记录</string>
+    <string name="cd_previous_month">上个月</string>
+    <string name="cd_next_month">下个月</string>
+    <string name="cd_previous_year">上一年</string>
+    <string name="cd_next_year">下一年</string>
+    <string name="month_picker_title">选择月份</string>
+    <string name="format_year">%1$d年</string>
+    <string name="format_month">%1$d月</string>
+
+    <!-- 记一笔 / 编辑记录 -->
+    <string name="title_new_record">记一笔</string>
+    <string name="title_edit_record">编辑记录</string>
+    <string name="label_category">分类</string>
+    <string name="field_merchant">商户 / 交易对象（可选）</string>
+    <string name="field_note">备注（可选）</string>
+    <string name="action_save">保存</string>
+    <string name="action_delete_record">删除这条记录</string>
+    <string name="error_invalid_amount">请输入正确的金额</string>
+    <string name="error_duplicate_record">已存在完全相同的记录，请勿重复添加</string>
+
+    <!-- 搜索 -->
+    <string name="search_title">搜索</string>
+    <string name="search_placeholder">金额 / 备注 / 商户 / 分类</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_all_categories">全部分类</string>
+    <string name="action_reset_filters">重置筛选</string>
+    <string name="search_empty">没有匹配的记录</string>
+    <string name="date_start_prefix">开始</string>
+    <string name="date_end_prefix">结束</string>
+    <string name="date_start_placeholder">开始日期</string>
+    <string name="date_end_placeholder">结束日期</string>
+
+    <!-- 统计 -->
+    <string name="stats_title">统计</string>
+    <string name="cd_custom_date_range">自定义日期范围</string>
+    <string name="stats_period_week">本周</string>
+    <string name="stats_period_month">本月</string>
+    <string name="stats_period_year">本年</string>
+    <string name="stats_period_custom">自定义</string>
+    <string name="stats_last_week">上周</string>
+    <string name="format_week_index">第%1$d周</string>
+    <string name="stats_date_range_separator">至</string>
+    <string name="stats_total_records">共 %1$d 笔记录</string>
+    <string name="stats_compare_title">环比上期</string>
+    <string name="stats_compare_previous">上期 ¥%1$s</string>
+    <string name="stats_daily_average">日均%1$s</string>
+    <string name="stats_no_data">暂无数据</string>
+    <string name="stats_donut_total">总计</string>
+    <string name="stats_chart_title">趋势图</string>
+    <string name="stats_chart_trend">趋势</string>
+    <string name="stats_chart_donut">占比</string>
+    <string name="stats_rank_title">分类排行</string>
+    <string name="stats_rank_summary">%1$s%% · %2$d 笔</string>
+    <string name="stats_donut_legend">%1$s %2$s%%</string>
+
+    <!-- 趋势图分桶标签 -->
+    <string name="bucket_day">%1$d日</string>
+    <string name="weekday_sun">日</string>
+    <string name="weekday_mon">一</string>
+    <string name="weekday_tue">二</string>
+    <string name="weekday_wed">三</string>
+    <string name="weekday_thu">四</string>
+    <string name="weekday_fri">五</string>
+    <string name="weekday_sat">六</string>
+
+    <!-- 统计标题 -->
+    <string name="stats_title_this_week">本周总%1$s</string>
+    <string name="stats_title_last_week">上周总%1$s</string>
+    <string name="stats_title_month_week">第%1$d周总%2$s</string>
+    <string name="stats_title_this_month">本月总%1$s</string>
+    <string name="stats_title_month_of_year">%1$d月总%2$s</string>
+    <string name="stats_title_this_year">本年总%1$s</string>
+    <string name="stats_title_custom">期间总%1$s</string>
+
+    <!-- 账单列表日分组头 -->
+    <string name="day_header_expense">支 ¥%1$s</string>
+    <string name="day_header_income">收 ¥%1$s</string>
+
+    <!-- 分类规则 -->
+    <string name="rules_title">分类规则</string>
+    <string name="rules_priority_hint">匹配优先级：自定义规则 &gt; 内置规则。手动修改某笔交易的分类时，也会自动学习为自定义规则。</string>
+    <string name="rules_empty">暂无规则</string>
+    <string name="rules_source_custom">自定义</string>
+    <string name="rules_source_builtin">内置</string>
+    <string name="cd_add_rule">添加规则</string>
+    <string name="dialog_add_rule_title">添加规则</string>
+    <string name="dialog_add_rule_hint">包含以下关键词的交易将自动归入指定分类</string>
+    <string name="field_keyword">关键词</string>
+    <string name="label_category_prefix">分类：</string>
+    <string name="dialog_duplicate_title">无法添加</string>
+    <string name="dialog_duplicate_message">关键词为空或该关键词的规则已存在</string>
+
+    <!-- 设置 -->
+    <string name="settings_title">设置</string>
+    <string name="section_appearance">外观</string>
+    <string name="section_auto_record">自动记账</string>
+    <string name="section_bill_import">账单导入</string>
+    <string name="section_category_rules">分类规则</string>
+    <string name="section_backup">数据备份</string>
+    <string name="section_about">关于</string>
+
+    <!-- 设置 · 外观 -->
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色模式</string>
+    <string name="theme_dark">深色模式</string>
+
+    <!-- 设置 · 自动记账 -->
+    <string name="toggle_auto_record_title">启用自动记账</string>
+    <string name="toggle_auto_record_subtitle">检测到支付时弹出确认卡片，手动确认后登记入账</string>
+    <string name="toggle_notify_title">自动记录成功后提醒</string>
+    <string name="toggle_notify_subtitle">发一条本地通知，方便核对</string>
+    <string name="toggle_learn_title">手动改分类时自动学习</string>
+    <string name="toggle_learn_subtitle">记住你的修改，下次同类交易自动归类</string>
+    <string name="warning_accessibility_disabled">⚠ 无障碍服务未开启，自动记账不会生效</string>
+    <string name="action_open_accessibility">去开启无障碍服务</string>
+    <string name="hint_overlay_permission">检测到支付但没弹确认卡片？去 系统设置→应用→轻记账→权限 开启「显示悬浮窗」；MIUI/HyperOS 还需开启「后台弹出界面」与「锁屏显示」（部分系统此处显示未授权但实际可用，可直接付款试试）</string>
+    <string name="action_grant_overlay">去授权悬浮窗</string>
+    <string name="hint_notification_access">微信/支付宝的支付页面对无障碍隐藏内容，建议同时开启「通知使用权」——支付完成后的系统通知会带金额，由它兜底记录</string>
+    <string name="action_grant_notification_access">去开启通知使用权</string>
+    <string name="scope_all">全部（微信 + 支付宝）</string>
+    <string name="scope_wechat_only">仅微信</string>
+    <string name="scope_alipay_only">仅支付宝</string>
+
+    <!-- 设置 · 账单导入 -->
+    <string name="bill_import_hint">从微信/支付宝导出账单文件后导入，自动去重、自动分类。\n微信为 xlsx 文件，支付宝为 csv 文件。</string>
+    <string name="action_import_wechat">导入微信账单</string>
+    <string name="action_import_alipay">导入支付宝账单</string>
+    <string name="progress_parsing_file">解析文件…</string>
+    <string name="progress_importing_percent">导入中 %1$d%%</string>
+    <string name="dialog_wechat_export_title">微信账单导出步骤</string>
+    <string name="dialog_alipay_export_title">支付宝账单导出步骤</string>
+    <string name="dialog_wechat_export_steps">1. 打开微信：我 → 服务 → 钱包 → 账单\n2. 点击右上角「常见问题」\n3. 选择「下载账单」→「用于个人对账」\n4. 选择时间范围，发送到邮箱\n5. 在邮箱中下载账单 xlsx 文件\n6. 回到本应用，点击「选择文件」选中该文件</string>
+    <string name="dialog_alipay_export_steps">1. 打开支付宝：我的 → 账单\n2. 点击右上角「…」→「开具交易流水证明」\n3. 选择「用于个人对账」，选择时间范围\n4. 发送到邮箱并下载 csv 文件\n5. 回到本应用，点击「选择文件」选中该文件</string>
+    <string name="action_choose_file">选择文件</string>
+
+    <!-- 设置 · 分类规则 -->
+    <string name="action_manage_rules">管理分类规则</string>
+    <string name="action_reclassify">重新分类历史账单</string>
+    <string name="action_reclassifying">正在重算…</string>
+    <string name="dialog_reclassify_title">重新分类历史账单</string>
+    <string name="dialog_reclassify_message">将按当前规则重算所有账单的分类，会覆盖手动改过的分类（手动学习产生的自定义规则仍然优先）。确定执行？</string>
+
+    <!-- 设置 · 数据备份 -->
+    <string name="backup_hint">导出 / 导入本应用专属的 Excel 备份（.xlsx，可用 Excel/WPS 打开）；导入按校验码自动去重</string>
+    <string name="action_export_backup">导出 Excel 备份</string>
+    <string name="action_import_backup">导入 Excel 备份</string>
+
+    <!-- 设置 · 关于 -->
+    <string name="about_version">轻记账 v%1$s</string>
+    <string name="about_tagline">本地记账 · 数据仅保存在本机 · 不请求网络权限</string>
+    <string name="action_check_update">检查更新</string>
+    <string name="dialog_update_title">检查更新</string>
+    <string name="dialog_update_message">为保护隐私，应用不申请网络权限，因此不会自动检查更新。获取最新版本请前往 GitHub Releases 页面手动查看与下载。</string>
+    <string name="dialog_update_current_version">当前版本：v%1$s</string>
+    <string name="action_go_releases">前往 Releases</string>
+
+    <!-- 设置 · 操作结果 -->
+    <string name="status_reclassified">已按当前规则重算，更新 %1$d 条</string>
+    <string name="status_import_done">导入完成：成功 %1$d 条，重复 %2$d 条，失败 %3$d 条，忽略 %4$d 条</string>
+    <string name="status_import_empty">未从文件中解析到有效账单记录，请确认选择了正确的账单文件</string>
+    <string name="status_import_failed">导入失败：%1$s</string>
+    <string name="status_backup_exported">备份导出成功：共 %1$d 条记录（Excel）</string>
+    <string name="status_backup_export_failed">导出失败：%1$s</string>
+    <string name="status_backup_imported">备份导入完成：成功 %1$d 条，重复 %2$d 条，失败 %3$d 条</string>
+    <string name="error_cannot_write_file">无法写入所选文件</string>
+    <string name="error_cannot_read_file">无法读取所选文件</string>
+    <string name="error_not_backup_format">不是本应用导出的 Excel 备份格式</string>
+    <string name="error_backup_empty">备份中没有账单记录</string>
+
+    <!-- 自动记账通知 -->
+    <string name="channel_auto_record">自动记账提醒</string>
+    <string name="channel_auto_record_permission">自动记账权限提醒</string>
+    <string name="notif_recorded_title">已确认记录一笔%1$s</string>
+    <string name="notif_pending_title">检测到一笔支付，等待确认</string>
+    <string name="notif_pending_title_failed">检测到一笔支付，确认卡片弹出失败</string>
+    <string name="notif_overlay_needed">需要「显示在其他应用上层」权限才能弹出确认卡片，点按去开启</string>
+    <string name="notif_overlay_rejected">系统拒绝了悬浮窗（%1$s）。请到 系统设置→应用→轻记账→权限 开启「显示悬浮窗」「后台弹出界面」「锁屏显示」（MIUI/HyperOS 三项都要开）</string>
+    <string name="notif_action_overlay_settings">悬浮窗设置</string>
+    <string name="notif_action_app_info">应用信息</string>
+
+    <!-- 确认卡片（悬浮窗） -->
+    <string name="overlay_title">自动记账 · 请确认</string>
+    <string name="overlay_field_merchant">对方 / 商户（可修改）</string>
+    <string name="overlay_field_note">备注（可修改）</string>
+    <string name="overlay_label_merchant">对方</string>
+    <string name="overlay_label_note">备注</string>
+    <string name="overlay_label_time">时间</string>
+    <string name="overlay_action_ignore">忽略</string>
+    <string name="overlay_action_confirm">记一笔</string>
+
+    <!-- 来源应用名 -->
+    <string name="source_wechat">微信</string>
+    <string name="source_alipay">支付宝</string>
 </resources>

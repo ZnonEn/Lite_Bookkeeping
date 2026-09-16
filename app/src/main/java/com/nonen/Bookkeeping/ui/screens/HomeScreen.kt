@@ -24,8 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.data.db.TransactionEntity
 import com.nonen.Bookkeeping.data.repo.TransactionRepository
 import com.nonen.Bookkeeping.ui.components.DayHeader
@@ -97,11 +99,11 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "轻记账",
+                text = stringResource(R.string.home_title),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onSearch) { Icon(Icons.Default.Search, contentDescription = "搜索") }
+            IconButton(onClick = onSearch) { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search)) }
         }
 
         // 概览卡、近7日卡、账单列表都在同一个滚动容器里，随页面整体滑动
@@ -122,7 +124,7 @@ fun HomeScreen(
                 item(key = "empty") {
                     EmptyState(
                         icon = "✎",
-                        text = "还没有账单记录",
+                        text = stringResource(R.string.home_empty),
                         modifier = Modifier.height(280.dp),
                     )
                 }

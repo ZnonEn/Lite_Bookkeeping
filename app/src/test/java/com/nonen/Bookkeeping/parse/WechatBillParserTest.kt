@@ -1,6 +1,5 @@
-package com.nonen.Bookkeeping
+package com.nonen.Bookkeeping.parse
 
-import com.nonen.Bookkeeping.parse.WechatBillParser
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 import java.time.LocalDate

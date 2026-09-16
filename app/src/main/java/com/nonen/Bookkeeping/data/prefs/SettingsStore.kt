@@ -1,6 +1,8 @@
 package com.nonen.Bookkeeping.data.prefs
 
 import android.content.Context
+import androidx.annotation.StringRes
+import com.nonen.Bookkeeping.R
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -16,18 +18,19 @@ object Packages {
     const val ALIPAY = "com.eg.android.AlipayGphone"
 }
 
-enum class ListenScope(val label: String, val packages: Set<String>) {
-    ALL("全部（微信 + 支付宝）", setOf(Packages.WECHAT, Packages.ALIPAY)),
-    WECHAT_ONLY("仅微信", setOf(Packages.WECHAT)),
-    ALIPAY_ONLY("仅支付宝", setOf(Packages.ALIPAY));
+/** 监听范围：labelRes 指向 UI 文案，领域层不持有本地化字符串 */
+enum class ListenScope(@StringRes val labelRes: Int, val packages: Set<String>) {
+    ALL(R.string.scope_all, setOf(Packages.WECHAT, Packages.ALIPAY)),
+    WECHAT_ONLY(R.string.scope_wechat_only, setOf(Packages.WECHAT)),
+    ALIPAY_ONLY(R.string.scope_alipay_only, setOf(Packages.ALIPAY));
 
     companion object {
         fun from(name: String?): ListenScope = entries.firstOrNull { it.name == name } ?: ALL
     }
 }
 
-enum class ThemeMode(val label: String) {
-    SYSTEM("跟随系统"), LIGHT("浅色模式"), DARK("深色模式");
+enum class ThemeMode(@StringRes val labelRes: Int) {
+    SYSTEM(R.string.theme_system), LIGHT(R.string.theme_light), DARK(R.string.theme_dark);
 
     companion object {
         fun from(name: String?): ThemeMode = entries.firstOrNull { it.name == name } ?: SYSTEM

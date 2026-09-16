@@ -7,8 +7,6 @@ package com.nonen.Bookkeeping.core
  * 医疗/其他/工资/红包/退款/理财）全部保留，无需迁移。
  */
 object Categories {
-    const val TYPE_INCOME = "income"
-    const val TYPE_EXPENSE = "expense"
 
     const val OTHER_EXPENSE = "其他"
     const val OTHER_INCOME = "其他收入"

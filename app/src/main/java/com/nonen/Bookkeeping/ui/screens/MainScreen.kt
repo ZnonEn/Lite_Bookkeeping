@@ -21,9 +21,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,7 +48,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.AppContainer
 import com.nonen.Bookkeeping.ui.motion.rememberPressScale
 import com.nonen.Bookkeeping.ui.motion.rememberReducedMotion
@@ -128,7 +131,7 @@ private fun MainBottomBar(
     val borderColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.12f)
     val pillColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f)
     val density = LocalDensity.current
-    var barWidthPx by remember { mutableStateOf(0f) }
+    var barWidthPx by remember { mutableFloatStateOf(0f) }
 
     Row(
         modifier = Modifier
@@ -164,9 +167,9 @@ private fun MainBottomBar(
                     )
                 }
                 Row(Modifier.fillMaxSize()) {
-                    MainTab(Icons.Default.Home, "首页", selectedTab == 0, isDark, Modifier.weight(1f)) { onTabSelected(0) }
-                    MainTab(Icons.Default.List, "统计", selectedTab == 1, isDark, Modifier.weight(1f)) { onTabSelected(1) }
-                    MainTab(Icons.Default.Settings, "设置", selectedTab == 2, isDark, Modifier.weight(1f)) { onTabSelected(2) }
+                    MainTab(Icons.Default.Home, stringResource(R.string.tab_home), selectedTab == 0, isDark, Modifier.weight(1f)) { onTabSelected(0) }
+                    MainTab(Icons.AutoMirrored.Filled.List, stringResource(R.string.tab_statistics), selectedTab == 1, isDark, Modifier.weight(1f)) { onTabSelected(1) }
+                    MainTab(Icons.Default.Settings, stringResource(R.string.tab_settings), selectedTab == 2, isDark, Modifier.weight(1f)) { onTabSelected(2) }
                 }
             }
         }
@@ -183,7 +186,7 @@ private fun MainBottomBar(
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = "记一笔",
+                contentDescription = stringResource(R.string.action_add_record),
                 tint = Color.White,
                 modifier = Modifier.size(20.dp),
             )

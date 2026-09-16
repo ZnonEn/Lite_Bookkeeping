@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- 仅用于“自动记账成功后发一条本地提醒”，无网络、无定位权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -20,7 +19,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.Bookkeeping"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

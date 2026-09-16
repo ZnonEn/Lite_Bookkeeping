@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.res.stringResource
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.ui.components.formatCompactAmount
 import com.nonen.Bookkeeping.ui.components.formatSignedPlain
 import com.nonen.Bookkeeping.ui.motion.rememberPressScale
@@ -73,7 +75,7 @@ internal fun OverviewCard(
         Column {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "本月概览",
+                    text = stringResource(R.string.home_month_overview),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.White.copy(alpha = 0.7f),
@@ -91,8 +93,8 @@ internal fun OverviewCard(
             )
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                StatColumn("收入", income)
-                StatColumn("支出", expense)
+                StatColumn(stringResource(R.string.type_income), income)
+                StatColumn(stringResource(R.string.type_expense), expense)
             }
         }
     }
@@ -109,7 +111,7 @@ private fun MonthChip(month: YearMonth, onPrev: () -> Unit, onNext: () -> Unit, 
     ) {
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            contentDescription = "上个月",
+            contentDescription = stringResource(R.string.cd_previous_month),
             tint = Color.White.copy(alpha = 0.8f),
             modifier = Modifier
                 .size(26.dp)
@@ -128,7 +130,7 @@ private fun MonthChip(month: YearMonth, onPrev: () -> Unit, onNext: () -> Unit, 
         )
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "下个月",
+            contentDescription = stringResource(R.string.cd_next_month),
             tint = Color.White.copy(alpha = 0.8f),
             modifier = Modifier
                 .size(26.dp)
@@ -174,7 +176,7 @@ internal fun WeekOverviewCard(days: List<WeekDayBar>) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("近7日", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.home_recent_seven_days), style = MaterialTheme.typography.titleSmall)
                 Text(
                     formatSignedPlain(net),
                     fontSize = 13.sp,
@@ -265,7 +267,7 @@ internal fun MonthPickerDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "选择月份",
+                        text = stringResource(R.string.month_picker_title),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f),
                     )
@@ -278,7 +280,7 @@ internal fun MonthPickerDialog(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "上一年",
+                            contentDescription = stringResource(R.string.cd_previous_year),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .size(26.dp)
@@ -286,7 +288,7 @@ internal fun MonthPickerDialog(
                                 .clickable { displayYear -= 1 },
                         )
                         Text(
-                            text = "${displayYear}年",
+                            text = stringResource(R.string.format_year, displayYear),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -294,7 +296,7 @@ internal fun MonthPickerDialog(
                         )
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "下一年",
+                            contentDescription = stringResource(R.string.cd_next_year),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .size(26.dp)
@@ -344,7 +346,7 @@ private fun MonthCell(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "${month}月",
+            text = stringResource(R.string.format_month, month),
             fontSize = 14.sp,
             fontWeight = if (selected || isCurrent) FontWeight.SemiBold else FontWeight.Medium,
             color = when {

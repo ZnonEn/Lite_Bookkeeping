@@ -2,8 +2,9 @@ package com.nonen.Bookkeeping.export
 
 import com.nonen.Bookkeeping.core.MiniXlsx
 import com.nonen.Bookkeeping.data.db.TransactionEntity
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -23,7 +24,7 @@ object BackupExporter {
     const val HEADER_SOURCE = "来源"
     const val HEADER_HASH = "校验码"
 
-    private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+    private val timeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US)
 
     fun buildXlsx(transactions: List<TransactionEntity>): ByteArray {
         val rows: List<List<Any?>> = buildList(transactions.size + 1) {
@@ -36,7 +37,7 @@ object BackupExporter {
             transactions.forEach { t ->
                 add(
                     listOf(
-                        timeFormat.format(Date(t.timestamp)),
+                        timeFormat.format(Instant.ofEpochMilli(t.timestamp).atZone(ZoneId.systemDefault())),
                         if (t.amount >= 0) "收入" else "支出",
                         kotlin.math.abs(t.amount),
                         t.category,

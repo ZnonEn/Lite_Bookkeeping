@@ -1,8 +1,7 @@
-package com.nonen.Bookkeeping
+package com.nonen.Bookkeeping.export
 
 import com.nonen.Bookkeeping.core.MiniXlsx
 import com.nonen.Bookkeeping.data.db.TransactionEntity
-import com.nonen.Bookkeeping.export.BackupExporter
 import com.nonen.Bookkeeping.parse.BackupExcelParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -10,7 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /** Excel 备份导出/导入回环 + MiniXlsx 基础读写 */
-class BackupExcelTest {
+class BackupRoundTripTest {
 
     private fun entity(
         amount: Double,

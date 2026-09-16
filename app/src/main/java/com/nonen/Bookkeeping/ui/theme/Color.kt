@@ -12,9 +12,6 @@ val AppleGreen = Color(0xFF34C759)
 val AppleBlue = Color(0xFF007AFF)
 val AppleOrange = Color(0xFFFF9500)
 val AppleRed = Color(0xFFFF3B30)
-val AppleTeal = Color(0xFF5AC8FA)
-val AppleIndigo = Color(0xFF5856D6)
-val ApplePurple = Color(0xFFAF52DE)
 
 val IncomeColor = AppleGreen
 val ExpenseColor = AppleOrange

@@ -1,7 +1,9 @@
 package com.nonen.Bookkeeping.service
 
 import android.content.Context
+import androidx.core.net.toUri
 import com.nonen.Bookkeeping.BookkeepingApp
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.HashUtil
 import com.nonen.Bookkeeping.core.JsonUtil
 import com.nonen.Bookkeeping.data.db.TransactionEntity
@@ -37,6 +39,7 @@ object AutoRecordPipeline {
     private const val CHANNEL_ID = "auto_record"
     private const val NOTIFICATION_ID = 1001
     private const val PERMISSION_NOTIFICATION_ID = 1002
+    private const val TAG = "AutoRecordPipeline"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -133,8 +136,8 @@ object AutoRecordPipeline {
         val keywords = listOfNotNull(parsed.counterparty, parsed.description).joinToString(" ")
         val card = PaymentConfirmOverlay.Card(
             sourceLabel = when (pkg) {
-                Packages.WECHAT -> "微信"
-                Packages.ALIPAY -> "支付宝"
+                Packages.WECHAT -> context.getString(R.string.source_wechat)
+                Packages.ALIPAY -> context.getString(R.string.source_alipay)
                 else -> pkg.substringAfterLast('.').take(8)
             },
             amountText = String.format(java.util.Locale.US, "¥%.2f", parsed.amount),
@@ -143,7 +146,7 @@ object AutoRecordPipeline {
             description = parsed.description,
             categoryExpense = container.ruleEngine.categorize(keywords, false),
             categoryIncome = container.ruleEngine.categorize(keywords, true),
-            timeText = java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(tradeTime)),
+            timeText = formatTradeTime(tradeTime),
         )
         CaptureDebug.record(
             pkg, origin,
@@ -173,6 +176,11 @@ object AutoRecordPipeline {
         parsed.timestamp
             ?.takeIf { it in now - 370L * 24 * 60 * 60 * 1000..now + 5 * 60 * 1000 }
             ?: now
+
+    /** 确认卡片上的入账时间展示：MM-dd HH:mm */
+    private fun formatTradeTime(ts: Long): String =
+        java.time.Instant.ofEpochMilli(ts).atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm"))
 
     /** 用户在确认卡片点「记一笔」后入库；交易对象/备注/分类以卡片上修改后的值为准 */
     private fun confirmInsert(
@@ -250,15 +258,19 @@ object AutoRecordPipeline {
             val manager = context.getSystemService(android.app.NotificationManager::class.java) ?: return
             val channelId = "${CHANNEL_ID}_permission"
             manager.createNotificationChannel(
-                android.app.NotificationChannel(channelId, "自动记账权限提醒", android.app.NotificationManager.IMPORTANCE_HIGH)
+                android.app.NotificationChannel(
+                    channelId,
+                    context.getString(R.string.channel_auto_record_permission),
+                    android.app.NotificationManager.IMPORTANCE_HIGH,
+                ),
             )
             val overlayIntent = android.content.Intent(
                 android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                android.net.Uri.parse("package:${context.packageName}"),
+                "package:${context.packageName}".toUri(),
             )
             val detailsIntent = android.content.Intent(
                 android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                android.net.Uri.parse("package:${context.packageName}"),
+                "package:${context.packageName}".toUri(),
             )
             val pendingOverlay = android.app.PendingIntent.getActivity(
                 context, 1, overlayIntent,
@@ -269,40 +281,49 @@ object AutoRecordPipeline {
                 android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT,
             )
             val text = if (reason == null) {
-                "需要「显示在其他应用上层」权限才能弹出确认卡片，点按去开启"
+                context.getString(R.string.notif_overlay_needed)
             } else {
-                "系统拒绝了悬浮窗（$reason）。请到 系统设置→应用→轻记账→权限 开启" +
-                    "「显示悬浮窗」「后台弹出界面」「锁屏显示」（MIUI/HyperOS 三项都要开）"
+                context.getString(R.string.notif_overlay_rejected, reason)
             }
-            val notification = android.app.Notification.Builder(context, channelId)
+            val notification = androidx.core.app.NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(com.nonen.Bookkeeping.R.drawable.ic_launcher_foreground)
-                .setContentTitle(if (reason == null) "检测到一笔支付，等待确认" else "检测到一笔支付，确认卡片弹出失败")
+                .setContentTitle(
+                    context.getString(
+                        if (reason == null) R.string.notif_pending_title else R.string.notif_pending_title_failed,
+                    ),
+                )
                 .setContentText(text)
-                .setStyle(android.app.Notification.BigTextStyle().bigText(text))
-                .addAction(0, "悬浮窗设置", pendingOverlay)
-                .addAction(0, "应用信息", pendingDetails)
+                .setStyle(androidx.core.app.NotificationCompat.BigTextStyle().bigText(text))
+                .addAction(0, context.getString(R.string.notif_action_overlay_settings), pendingOverlay)
+                .addAction(0, context.getString(R.string.notif_action_app_info), pendingDetails)
                 .setContentIntent(pendingOverlay)
                 .setAutoCancel(true)
                 .build()
             manager.notify(PERMISSION_NOTIFICATION_ID, notification)
-        }
+        }.onFailure { android.util.Log.w(TAG, "悬浮窗权限提醒发送失败", it) }
     }
 
     private fun showRecordedNotification(context: Context, signedAmount: Double, category: String) {
         runCatching {
             val manager = context.getSystemService(android.app.NotificationManager::class.java) ?: return
             manager.createNotificationChannel(
-                android.app.NotificationChannel(CHANNEL_ID, "自动记账提醒", android.app.NotificationManager.IMPORTANCE_LOW)
+                android.app.NotificationChannel(
+                    CHANNEL_ID,
+                    context.getString(R.string.channel_auto_record),
+                    android.app.NotificationManager.IMPORTANCE_LOW,
+                ),
             )
-            val direction = if (signedAmount < 0) "支出" else "收入"
+            val direction = context.getString(
+                if (signedAmount < 0) R.string.type_expense else R.string.type_income,
+            )
             val text = "$category ¥${String.format(java.util.Locale.US, "%.2f", kotlin.math.abs(signedAmount))}"
-            val notification = android.app.Notification.Builder(context, CHANNEL_ID)
+            val notification = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(com.nonen.Bookkeeping.R.drawable.ic_launcher_foreground)
-                .setContentTitle("已确认记录一笔$direction")
+                .setContentTitle(context.getString(R.string.notif_recorded_title, direction))
                 .setContentText(text)
                 .setAutoCancel(true)
                 .build()
             manager.notify(NOTIFICATION_ID, notification)
-        }
+        }.onFailure { android.util.Log.w(TAG, "记账结果通知发送失败", it) }
     }
 }

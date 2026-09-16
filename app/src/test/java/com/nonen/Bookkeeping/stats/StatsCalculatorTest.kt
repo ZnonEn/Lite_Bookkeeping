@@ -1,9 +1,6 @@
-package com.nonen.Bookkeeping
+package com.nonen.Bookkeeping.stats
 
 import com.nonen.Bookkeeping.data.db.TransactionEntity
-import com.nonen.Bookkeeping.stats.StatsCalculator
-import com.nonen.Bookkeeping.stats.StatsPeriod
-import com.nonen.Bookkeeping.stats.StatsQuery
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -49,7 +46,7 @@ class StatsCalculatorTest {
         )
         val data = compute(StatsQuery(StatsPeriod.MONTH, isIncome = false), bills, today)!!
 
-        assertEquals("本月总支出", data.title)
+        assertEquals(StatsTitle.ThisMonth, data.title)
         assertEquals(180.0, data.total, 0.001)
         assertEquals(3, data.count)
         // 分类按金额倒序
@@ -65,18 +62,21 @@ class StatsCalculatorTest {
         val today = LocalDate.of(2026, 2, 10)
         val data = compute(StatsQuery(StatsPeriod.MONTH, isIncome = false), emptyList(), today)!!
         assertEquals(28, data.buckets.size) // 2026-02 有 28 天
-        assertEquals("1", data.buckets.first().label)
-        assertEquals("28", data.buckets.last().label)
+        assertEquals(BucketLabelKind.DAY, data.buckets.first().labelKind)
+        assertEquals(1, data.buckets.first().labelValue)
+        assertEquals(BucketLabelKind.DAY, data.buckets.last().labelKind)
+        assertEquals(28, data.buckets.last().labelValue)
     }
 
     @Test
     fun `month week slice uses 7 day window with weekday labels`() {
         val today = LocalDate.of(2026, 3, 15)
         val data = compute(StatsQuery(StatsPeriod.MONTH, isIncome = false, weekSel = 1), emptyList(), today)!!
-        assertEquals("第1周总支出", data.title)
+        assertEquals(StatsTitle.MonthWeek(1), data.title)
         assertEquals(7, data.buckets.size)
         // 第 1 周从 1 号开始：2026-03-01 是周日
-        assertEquals("日", data.buckets.first().label)
+        assertEquals(BucketLabelKind.WEEKDAY, data.buckets.first().labelKind)
+        assertEquals(0, data.buckets.first().labelValue)
     }
 
     @Test
@@ -87,9 +87,10 @@ class StatsCalculatorTest {
             tx(-20.0, "餐饮", LocalDate.of(2026, 3, 5)),
         )
         val data = compute(StatsQuery(StatsPeriod.YEAR, isIncome = false), bills, today)!!
-        assertEquals("本年总支出", data.title)
+        assertEquals(StatsTitle.ThisYear, data.title)
         assertEquals(12, data.buckets.size)
-        assertEquals("1月", data.buckets[0].label)
+        assertEquals(BucketLabelKind.MONTH, data.buckets[0].labelKind)
+        assertEquals(1, data.buckets[0].labelValue)
         assertEquals(10.0, data.buckets[0].value, 0.001)
         assertEquals(20.0, data.buckets[2].value, 0.001)
         assertEquals(30.0, data.total, 0.001)
@@ -99,7 +100,7 @@ class StatsCalculatorTest {
     fun `year with month selection buckets by day`() {
         val today = LocalDate.of(2026, 6, 1)
         val data = compute(StatsQuery(StatsPeriod.YEAR, isIncome = false, monthSel = 2), emptyList(), today)!!
-        assertEquals("2月总支出", data.title)
+        assertEquals(StatsTitle.MonthOfYear(2), data.title)
         assertEquals(28, data.buckets.size)
     }
 
@@ -112,7 +113,7 @@ class StatsCalculatorTest {
             tx(-30.0, "餐饮", thisWeek.minusWeeks(1)),
         )
         val data = compute(StatsQuery(StatsPeriod.WEEK, isIncome = false), bills, today)!!
-        assertEquals("本周总支出", data.title)
+        assertEquals(StatsTitle.ThisWeek, data.title)
         assertEquals(70.0, data.total, 0.001)
         assertEquals(30.0, data.prevTotal, 0.001)
     }
@@ -122,7 +123,7 @@ class StatsCalculatorTest {
         val today = LocalDate.of(2026, 3, 15)
         val bills = listOf(tx(500.0, "工资", today), tx(-100.0, "餐饮", today))
         val data = compute(StatsQuery(StatsPeriod.MONTH, isIncome = true), bills, today)!!
-        assertEquals("本月总收入", data.title)
+        assertEquals(StatsTitle.ThisMonth, data.title)
         assertEquals(500.0, data.total, 0.001)
     }
 
@@ -152,9 +153,10 @@ class StatsCalculatorTest {
             emptyList(),
             today,
         )!!
-        assertEquals("期间总支出", data.title)
+        assertEquals(StatsTitle.Custom, data.title)
         assertEquals(6, data.buckets.size)
-        assertEquals("1月", data.buckets.first().label)
+        assertEquals(BucketLabelKind.MONTH, data.buckets.first().labelKind)
+        assertEquals(1, data.buckets.first().labelValue)
     }
 
     @Test

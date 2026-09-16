@@ -37,6 +37,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.nonen.Bookkeeping.R
 
 /**
  * 设置页通用组件：卡片、开关行、单选行、折叠分组。
@@ -122,7 +124,7 @@ internal fun CollapsibleSection(
             )
             Icon(
                 Icons.Default.KeyboardArrowDown,
-                contentDescription = if (expanded) "收起" else "展开",
+                contentDescription = stringResource(if (expanded) R.string.action_collapse else R.string.action_expand),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.rotate(chevron),
             )
@@ -168,7 +170,7 @@ internal fun ImportProgressRow(progress: Float, modifier: Modifier = Modifier) {
         if (progress < 0f) {
             LinearProgressIndicator(Modifier.weight(1f))
             Text(
-                "解析文件…",
+                stringResource(R.string.progress_parsing_file),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 12.dp),
@@ -176,7 +178,7 @@ internal fun ImportProgressRow(progress: Float, modifier: Modifier = Modifier) {
         } else {
             LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.weight(1f))
             Text(
-                "导入中 ${(progress.coerceIn(0f, 1f) * 100).toInt()}%",
+                stringResource(R.string.progress_importing_percent, (progress.coerceIn(0f, 1f) * 100).toInt()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 12.dp),

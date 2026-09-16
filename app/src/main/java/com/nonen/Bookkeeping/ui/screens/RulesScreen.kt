@@ -1,6 +1,5 @@
 package com.nonen.Bookkeeping.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +27,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,10 +47,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
-import com.nonen.Bookkeeping.data.db.CategoryRuleEntity
 import com.nonen.Bookkeeping.data.repo.RuleRepository
 import com.nonen.Bookkeeping.ui.theme.AppleBlue
 import com.nonen.Bookkeeping.ui.theme.InkPrimary
@@ -85,9 +84,9 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("分类规则") },
+                title = { Text(stringResource(R.string.rules_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 },
             )
         },
@@ -102,7 +101,7 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
             ) {
                 Icon(
                     Icons.Default.Add,
-                    contentDescription = "添加规则",
+                    contentDescription = stringResource(R.string.cd_add_rule),
                     tint = Color.White,
                     modifier = Modifier.size(20.dp),
                 )
@@ -111,14 +110,14 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Text(
-                "匹配优先级：自定义规则 > 内置规则。手动修改某笔交易的分类时，也会自动学习为自定义规则。",
+                stringResource(R.string.rules_priority_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
             if (rules.isEmpty()) {
                 Text(
-                    "暂无规则",
+                    stringResource(R.string.rules_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp),
@@ -139,7 +138,7 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
                             Column(Modifier.weight(1f)) {
                                 Text("${rule.keyword} → ${rule.category}", style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    if (rule.isCustom) "自定义" else "内置",
+                                    stringResource(if (rule.isCustom) R.string.rules_source_custom else R.string.rules_source_builtin),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -147,7 +146,7 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
                             IconButton(onClick = { vm.delete(rule.id) }) {
                                 Icon(
                                     Icons.Default.Delete,
-                                    contentDescription = "删除",
+                                    contentDescription = stringResource(R.string.action_delete),
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(20.dp),
                                 )
@@ -173,9 +172,9 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
     if (duplicateWarning) {
         AlertDialog(
             onDismissRequest = { duplicateWarning = false },
-            title = { Text("无法添加") },
-            text = { Text("关键词为空或该关键词的规则已存在") },
-            confirmButton = { TextButton(onClick = { duplicateWarning = false }) { Text("知道了") } },
+            title = { Text(stringResource(R.string.dialog_duplicate_title)) },
+            text = { Text(stringResource(R.string.dialog_duplicate_message)) },
+            confirmButton = { TextButton(onClick = { duplicateWarning = false }) { Text(stringResource(R.string.action_ok)) } },
         )
     }
 }
@@ -188,15 +187,15 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加规则") },
+        title = { Text(stringResource(R.string.dialog_add_rule_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("包含以下关键词的交易将自动归入指定分类", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.dialog_add_rule_hint), style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = keyword,
                     onValueChange = { keyword = it },
-                    label = { Text("关键词") },
+                    label = { Text(stringResource(R.string.field_keyword)) },
                     singleLine = true,
                     shape = MaterialTheme.shapes.small,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -207,7 +206,7 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> 
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("分类：", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.label_category_prefix), style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = { menu = true }) { Text("${Categories.emoji(category)} $category") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -222,8 +221,8 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> 
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(keyword, category) }) { Text("添加") }
+            TextButton(onClick = { onConfirm(keyword, category) }) { Text(stringResource(R.string.action_add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }

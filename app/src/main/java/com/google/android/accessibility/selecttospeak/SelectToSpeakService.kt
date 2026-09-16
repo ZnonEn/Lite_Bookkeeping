@@ -98,6 +98,8 @@ class SelectToSpeakService : AccessibilityService() {
                 }
                 scheduleWindowScan(WINDOW_SCAN_DELAY_MS)
             }
+
+            else -> Unit
         }
     }
 
