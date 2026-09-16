@@ -188,8 +188,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                                 amount = signed,
                                 category = row.category
                                     ?: container.ruleEngine.categorize(
-                                        listOfNotNull(row.merchant, row.note).joinToString(" "),
-                                        row.isIncome,
+                                        text = listOfNotNull(row.merchant, row.note).joinToString(" "),
+                                        isIncome = row.isIncome,
+                                        merchant = row.merchant,
                                     ),
                                 note = row.note,
                                 merchant = row.merchant,

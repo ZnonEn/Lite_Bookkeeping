@@ -2,6 +2,7 @@ package com.nonen.Bookkeeping.core
 
 import com.nonen.Bookkeeping.data.db.CategoryRuleEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuleEngineTest {
@@ -47,6 +48,28 @@ class RuleEngineTest {
         val income = rules.filter { it.second in Categories.incomeCategories }.map { it.first }
         assertEquals("支出方向存在重复关键词：${expense.groupBy { it }.filterValues { it.size > 1 }.keys}", expense.size, expense.toSet().size)
         assertEquals("收入方向存在重复关键词：${income.groupBy { it }.filterValues { it.size > 1 }.keys}", income.size, income.toSet().size)
+    }
+
+    @Test
+    fun `no two default rules share keyword and category`() {
+        // 唯一约束是 (keyword, category)：完全相同的配对会在播种时被 IGNORE。
+        // 这条守卫防止新增规则时写出永远插不进去的死条目。
+        val rules = Categories.defaultRules()
+        val dup = rules.groupBy { it }.filterValues { it.size > 1 }.keys
+        assertEquals("存在完全相同的关键词→分类配对：$dup", rules.size, rules.toSet().size)
+    }
+
+    @Test
+    fun `cross direction keywords are preserved as distinct rules`() {
+        // 「红包」支出→人情、收入→红包 必须各存一条。
+        // 旧 schema 的唯一索引只认 keyword，后播种的收入侧那条被静默丢弃，
+        // 导致「收到红包」永远落不到「红包」分类。
+        val rules = Categories.defaultRules()
+        val pairs = rules.toSet()
+        assertTrue("缺少 红包→人情", ("红包" to "人情") in pairs)
+        assertTrue("缺少 红包→红包", ("红包" to "红包") in pairs)
+        assertTrue("缺少 利息→金融", ("利息" to "金融") in pairs)
+        assertTrue("缺少 利息→理财", ("利息" to "理财") in pairs)
     }
 
     @Test

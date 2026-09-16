@@ -16,8 +16,11 @@ data class ParsedBillRow(
     val isIncome: Boolean = false,
     val merchant: String? = null,
     val note: String? = null,
-    /** 平台自带的分类（支付宝「交易分类」），仅用于自动分类匹配，不入库 */
-    val categoryHint: String? = null,
+    /**
+     * 平台自带的分类值（支付宝「交易分类」/ 微信「交易类型」），
+     * 作为权威分类依据直接映射，不入库。
+     */
+    val platformCategory: String? = null,
     val rawData: String = "",
     /** true 表示该行按规则被跳过（不计收支 / 已退款 / 交易未成功） */
     val skipped: Boolean = false,

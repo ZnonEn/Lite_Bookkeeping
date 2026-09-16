@@ -134,6 +134,7 @@ object AutoRecordPipeline {
         }
 
         val keywords = listOfNotNull(parsed.counterparty, parsed.description).joinToString(" ")
+        // 卡片初值就按完整优先链预测：商户记忆命中时，用户直接确认即可，无需再改分类
         val card = PaymentConfirmOverlay.Card(
             sourceLabel = when (pkg) {
                 Packages.WECHAT -> context.getString(R.string.source_wechat)
@@ -144,8 +145,12 @@ object AutoRecordPipeline {
             isIncome = parsed.isIncome,
             counterparty = parsed.counterparty,
             description = parsed.description,
-            categoryExpense = container.ruleEngine.categorize(keywords, false),
-            categoryIncome = container.ruleEngine.categorize(keywords, true),
+            categoryExpense = container.ruleEngine.categorize(
+                text = keywords, isIncome = false, merchant = parsed.counterparty,
+            ),
+            categoryIncome = container.ruleEngine.categorize(
+                text = keywords, isIncome = true, merchant = parsed.counterparty,
+            ),
             timeText = formatTradeTime(tradeTime),
         )
         CaptureDebug.record(
@@ -205,10 +210,13 @@ object AutoRecordPipeline {
             val finalNote = note?.takeIf { it.isNotBlank() }
             val finalCategory = category.ifBlank {
                 container.ruleEngine.categorize(
-                    listOfNotNull(finalMerchant, finalNote).joinToString(" "),
-                    isIncome,
+                    text = listOfNotNull(finalMerchant, finalNote).joinToString(" "),
+                    isIncome = isIncome,
+                    merchant = finalMerchant,
                 )
             }
+            // 用户确认的分类即最高价值的学习样本：记住这个商户，下次直接命中
+            container.transactionRepository.learnFromConfirm(finalMerchant, finalCategory, isIncome)
             val signed = if (isIncome) parsed.amount else -parsed.amount
             val entity = TransactionEntity(
                 amount = signed,

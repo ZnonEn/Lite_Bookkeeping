@@ -39,14 +39,16 @@ class AppContainer(val appContext: Context) {
     val settings = SettingsStore(appContext)
 
     private val database = Room.databaseBuilder(appContext, AppDatabase::class.java, "bookkeeping.db")
+        .addMigrations(AppDatabase.MIGRATION_1_2)
         .build()
 
     val transactionDao get() = database.transactionDao()
     val ruleDao get() = database.categoryRuleDao()
+    val merchantDao get() = database.merchantCategoryDao()
 
-    val ruleRepository = RuleRepository(ruleDao)
-    val transactionRepository = TransactionRepository(transactionDao, ruleDao, settings)
-    val ruleEngine = RuleEngine(ruleDao)
+    val ruleRepository = RuleRepository(ruleDao, merchantDao)
+    val transactionRepository = TransactionRepository(transactionDao, ruleDao, merchantDao, settings)
+    val ruleEngine = RuleEngine(ruleDao, merchantDao)
     val billImporter = BillImporter(transactionRepository, ruleEngine)
 
     init {

@@ -35,7 +35,7 @@ class AlipayBillParserTest {
         assertEquals(10.0, first.amount!!, 1e-9)
         assertFalse(first.isIncome)
         assertEquals("苍南县城乡公共交通有限公司", first.merchant)
-        assertEquals("交通出行", first.categoryHint)
+        assertEquals("交通出行", first.platformCategory)
         assertTrue(first.timestamp!! > 0)
         // 斜杠日期 2026/8/27 14:56 应正确解析
         val ldt = java.time.Instant.ofEpochMilli(first.timestamp!!).atZone(java.time.ZoneId.systemDefault())
@@ -52,7 +52,7 @@ class AlipayBillParserTest {
         assertFalse(third.skipped)
         assertEquals(3.65, third.amount!!, 1e-9)
         assertEquals("赵一鸣", third.merchant)
-        assertEquals("餐饮美食", third.categoryHint)
+        assertEquals("餐饮美食", third.platformCategory)
     }
 
     @Test

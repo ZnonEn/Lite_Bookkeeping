@@ -35,6 +35,8 @@ object WechatBillParser {
         val cDir = col("收/支")
         val cAmount = col("金额(元)")
         val cStatus = col("当前状态")
+        // 交易类型是平台权威分类：红包/转账等场景可直接落类（商户消费这类过泛值不用，见 PlatformCategories）
+        val cType = col("交易类型")
         if (cTime < 0 || cDir < 0 || cAmount < 0) return emptyList()
 
         return table.drop(headerIdx + 1).mapNotNull { row ->
@@ -47,10 +49,11 @@ object WechatBillParser {
             val party = row.getOrNull(cParty)?.trim().orEmpty()
             val goods = row.getOrNull(cGoods)?.trim().orEmpty()
             val amountText = row.getOrNull(cAmount)?.trim().orEmpty()
+            val tradeType = row.getOrNull(cType)?.trim().orEmpty()
 
             val raw = JsonUtil.obj(
                 "time" to time, "party" to party, "goods" to goods,
-                "direction" to dir, "amount" to amountText,
+                "direction" to dir, "amount" to amountText, "type" to tradeType,
             )
 
             // 「/」为不计收支（理财、充值、提现等）；已退款的原记录跳过，避免与退款行重复计账
@@ -63,6 +66,7 @@ object WechatBillParser {
                     isIncome = dir == "收入",
                     merchant = party.ifEmpty { null },
                     note = goods.ifEmpty { null },
+                    platformCategory = tradeType.ifEmpty { null },
                     rawData = raw,
                 )
             }

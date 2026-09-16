@@ -25,6 +25,11 @@ class BillImporter(
         var failed = 0
         var skipped = 0
         val total = rows.size
+
+        // 分类依据一次取齐：逐行调用 categorize 会在每行都查一次规则表，
+        // 导入数千行就是数千次全表读（N+1）
+        val rules = ruleEngine.loadRules()
+
         for ((index, row) in rows.withIndex()) {
             val timestamp = row.timestamp
             val amount = row.amount
@@ -33,10 +38,16 @@ class BillImporter(
                 timestamp == null || amount == null -> failed++
                 else -> {
                     val signedAmount = if (row.isIncome) amount else -amount
-                    val text = listOfNotNull(row.merchant, row.categoryHint, row.note).joinToString(" ")
+                    val text = listOfNotNull(row.merchant, row.note).joinToString(" ")
                     val entity = TransactionEntity(
                         amount = signedAmount,
-                        category = ruleEngine.categorize(text, row.isIncome),
+                        category = RuleEngine.classify(
+                            text = text,
+                            isIncome = row.isIncome,
+                            rules = rules,
+                            merchant = row.merchant,
+                            platformCategory = row.platformCategory,
+                        ),
                         note = row.note,
                         merchant = row.merchant,
                         timestamp = timestamp,
