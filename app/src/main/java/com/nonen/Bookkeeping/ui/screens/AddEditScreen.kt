@@ -55,6 +55,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.ui.components.AnimatedSegmented
 import com.nonen.Bookkeeping.ui.components.formatDateTime
@@ -97,7 +99,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
 
         Column(Modifier.padding(horizontal = 20.dp)) {
             AnimatedSegmented(
-                options = listOf("支出", "收入"),
+                options = listOf(stringResource(R.string.type_expense), stringResource(R.string.type_income)),
                 selectedIndex = if (vm.isIncome) 1 else 0,
                 onSelected = { vm.setType(it == 1) },
                 thumbColor = if (vm.isIncome) IncomeColor else ExpenseColor,
@@ -108,7 +110,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
             AmountField(value = vm.amount, onValueChange = vm::setAmountInput)
 
             Spacer(Modifier.height(20.dp))
-            Text("分类", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.label_category), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(10.dp))
             CategoryGrid(
                 categories = vm.categoryList,
@@ -120,7 +122,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = vm.merchant,
                 onValueChange = { vm.merchant = it },
-                label = { Text("商户 / 交易对象（可选）") },
+                label = { Text(stringResource(R.string.field_merchant)) },
                 shape = fieldShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AppleBlue,
@@ -133,7 +135,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = vm.note,
                 onValueChange = { vm.note = it },
-                label = { Text("备注（可选）") },
+                label = { Text(stringResource(R.string.field_note)) },
                 shape = fieldShape,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = AppleBlue,
@@ -142,9 +144,13 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            vm.errorMessage?.let {
+            vm.errorMessageRes?.let {
                 Spacer(Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    stringResource(it),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -165,7 +171,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                 ),
                 modifier = saveScale.fillMaxWidth().height(50.dp),
             ) {
-                Text("保存", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.action_save), fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             if (vm.isEdit) {
                 Spacer(Modifier.height(8.dp))
@@ -173,7 +179,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                     TextButton(
                         onClick = { vm.delete(onBack) },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    ) { Text("删除这条记录") }
+                    ) { Text(stringResource(R.string.action_delete_record)) }
                 }
             }
             Spacer(Modifier.height(32.dp))
@@ -196,9 +202,11 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                     }
                     showDatePicker = false
                     showTimePicker = true
-                }) { Text("下一步") }
+                }) { Text(stringResource(R.string.action_next)) }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         ) { DatePicker(state = state) }
     }
 
@@ -211,7 +219,7 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
         )
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
-            title = { Text("选择时间") },
+            title = { Text(stringResource(R.string.dialog_pick_time)) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(onClick = {
@@ -220,9 +228,11 @@ fun AddEditScreen(vm: AddEditViewModel, onBack: () -> Unit) {
                         .atTime(timeState.hour, timeState.minute)
                         .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     showTimePicker = false
-                }) { Text("确定") }
+                }) { Text(stringResource(R.string.action_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("取消") } },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
         )
     }
 }
@@ -240,11 +250,11 @@ private fun AddEditHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
         }
         Spacer(Modifier.width(4.dp))
         Text(
-            text = if (isEdit) "编辑记录" else "记一笔",
+            text = stringResource(if (isEdit) R.string.title_edit_record else R.string.title_new_record),
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.weight(1f),
         )

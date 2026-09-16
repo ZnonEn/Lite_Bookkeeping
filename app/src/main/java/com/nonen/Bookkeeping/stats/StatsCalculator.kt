@@ -16,8 +16,6 @@ import kotlin.math.min
  */
 object StatsCalculator {
 
-    private val WEEKDAY_SHORT = listOf("日", "一", "二", "三", "四", "五", "六")
-
     /**
      * @param fetch 按 [startMillis, endMillis] 读取账单（含边界）
      * @param today 计算基准日，测试时可注入固定日期
@@ -65,22 +63,24 @@ object StatsCalculator {
                     start.withDayOfMonth(1), end.plusDays(1).withDayOfMonth(1)
                 ).toInt()
                 (0 until months).map { i ->
-                    StatsBucket("${start.plusMonths(i.toLong()).monthValue}月", bucketTotals[i] ?: 0.0)
+                    StatsBucket(BucketLabelKind.MONTH, start.plusMonths(i.toLong()).monthValue, bucketTotals[i] ?: 0.0)
                 }
             }
             query.period == StatsPeriod.YEAR && query.monthSel != null ->
-                (0 until start.lengthOfMonth()).map { i -> StatsBucket("${i + 1}", bucketTotals[i] ?: 0.0) }
+                (0 until start.lengthOfMonth()).map { i ->
+                    StatsBucket(BucketLabelKind.DAY, i + 1, bucketTotals[i] ?: 0.0)
+                }
             range.weekdayLabels -> {
                 val len = ChronoUnit.DAYS.between(start, end).toInt() + 1
                 (0 until len).map { i ->
                     val wd = start.plusDays(i.toLong()).dayOfWeek.value % 7 // ISO 周一=1…周日=7 → 日=0
-                    StatsBucket(WEEKDAY_SHORT[wd], bucketTotals[i] ?: 0.0)
+                    StatsBucket(BucketLabelKind.WEEKDAY, wd, bucketTotals[i] ?: 0.0)
                 }
             }
             else -> {
                 val len = ChronoUnit.DAYS.between(start, end).toInt() + 1
                 (0 until len).map { i ->
-                    StatsBucket("${start.plusDays(i.toLong()).dayOfMonth}", bucketTotals[i] ?: 0.0)
+                    StatsBucket(BucketLabelKind.DAY, start.plusDays(i.toLong()).dayOfMonth, bucketTotals[i] ?: 0.0)
                 }
             }
         }
@@ -112,21 +112,20 @@ object StatsCalculator {
     private data class DateRange(
         val start: LocalDate,
         val end: LocalDate,
-        val title: String,
+        val title: StatsTitle,
         val weekdayLabels: Boolean = false,
         val monthBuckets: Boolean = false,
     )
 
-    private fun resolveRange(query: StatsQuery, today: LocalDate): DateRange? {
-        val noun = typeNoun(query.isIncome)
-        return when (query.period) {
+    private fun resolveRange(query: StatsQuery, today: LocalDate): DateRange? =
+        when (query.period) {
             StatsPeriod.WEEK -> {
                 val offset = query.weekSel ?: 0 // null=本周, -1=上周
                 val start = today.with(DayOfWeek.MONDAY).plusDays(offset * 7L)
                 DateRange(
                     start = start,
                     end = start.plusDays(6),
-                    title = if (offset < 0) "上周总$noun" else "本周总$noun",
+                    title = if (offset < 0) StatsTitle.LastWeek else StatsTitle.ThisWeek,
                     weekdayLabels = true,
                 )
             }
@@ -139,14 +138,14 @@ object StatsCalculator {
                     DateRange(
                         start = today.withDayOfMonth(slices[idx].first),
                         end = today.withDayOfMonth(slices[idx].second),
-                        title = "第${idx + 1}周总$noun",
+                        title = StatsTitle.MonthWeek(idx + 1),
                         weekdayLabels = true,
                     )
                 } else {
                     DateRange(
                         start = today.withDayOfMonth(1),
                         end = today.withDayOfMonth(today.lengthOfMonth()),
-                        title = "本月总$noun",
+                        title = StatsTitle.ThisMonth,
                     )
                 }
             }
@@ -155,12 +154,12 @@ object StatsCalculator {
                 val m = query.monthSel
                 if (m != null) {
                     val start = LocalDate.of(today.year, m, 1)
-                    DateRange(start = start, end = start.withDayOfMonth(start.lengthOfMonth()), title = "${m}月总$noun")
+                    DateRange(start = start, end = start.withDayOfMonth(start.lengthOfMonth()), title = StatsTitle.MonthOfYear(m))
                 } else {
                     DateRange(
                         start = LocalDate.of(today.year, 1, 1),
                         end = LocalDate.of(today.year, 12, 31),
-                        title = "本年总$noun",
+                        title = StatsTitle.ThisYear,
                         monthBuckets = true,
                     )
                 }
@@ -174,12 +173,11 @@ object StatsCalculator {
                 DateRange(
                     start = start,
                     end = end,
-                    title = "期间总$noun",
+                    title = StatsTitle.Custom,
                     monthBuckets = ChronoUnit.DAYS.between(start, end) > 92,
                 )
             }
         }
-    }
 
     private fun resolvePrevRange(query: StatsQuery, start: LocalDate, end: LocalDate): Pair<LocalDate, LocalDate> = when {
         query.period == StatsPeriod.MONTH && query.weekSel == null -> {
@@ -212,8 +210,6 @@ object StatsCalculator {
         }
         return out
     }
-
-    private fun typeNoun(isIncome: Boolean) = if (isIncome) "收入" else "支出"
 
     private fun localDateOf(ts: Long, zone: ZoneId): LocalDate =
         java.time.Instant.ofEpochMilli(ts).atZone(zone).toLocalDate()

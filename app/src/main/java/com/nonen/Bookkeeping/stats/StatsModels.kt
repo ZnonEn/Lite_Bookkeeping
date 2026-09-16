@@ -1,12 +1,25 @@
 package com.nonen.Bookkeeping.stats
 
+import androidx.annotation.StringRes
+import com.nonen.Bookkeeping.R
+
 /** 统计周期 */
-enum class StatsPeriod(val label: String) {
-    WEEK("本周"), MONTH("本月"), YEAR("本年"), CUSTOM("自定义")
+enum class StatsPeriod(@StringRes val labelRes: Int) {
+    WEEK(R.string.stats_period_week),
+    MONTH(R.string.stats_period_month),
+    YEAR(R.string.stats_period_year),
+    CUSTOM(R.string.stats_period_custom),
 }
 
-/** 趋势图单个分桶（一天 / 一周 / 一月） */
-data class StatsBucket(val label: String, val value: Double)
+/** 趋势图分桶标签的渲染方式：按月 / 按日 / 按星期，均由 UI 层本地化 */
+enum class BucketLabelKind { MONTH, DAY, WEEKDAY }
+
+/** 趋势图单个分桶（[labelValue] 的含义由 [labelKind] 决定） */
+data class StatsBucket(
+    val labelKind: BucketLabelKind,
+    val labelValue: Int,
+    val value: Double,
+)
 
 /** 分类排行项 */
 data class CategoryStat(
@@ -16,9 +29,31 @@ data class CategoryStat(
     val percent: Float,
 )
 
+/**
+ * 统计结果标题的结构化描述（不含本地化文案，由 UI 层拼装）。
+ * 展示形如「本月总支出」「第2周总收入」。
+ */
+sealed interface StatsTitle {
+    data object ThisWeek : StatsTitle
+    data object LastWeek : StatsTitle
+
+    /** 本月内的第 [index] 周（1-based） */
+    data class MonthWeek(val index: Int) : StatsTitle
+
+    data object ThisMonth : StatsTitle
+
+    /** 本年内指定月份 */
+    data class MonthOfYear(val month: Int) : StatsTitle
+
+    data object ThisYear : StatsTitle
+
+    /** 自定义区间 */
+    data object Custom : StatsTitle
+}
+
 /** 统计页一次查询的完整结果 */
 data class StatsData(
-    val title: String,
+    val title: StatsTitle,
     val total: Double,
     val count: Int,
     val prevTotal: Double,

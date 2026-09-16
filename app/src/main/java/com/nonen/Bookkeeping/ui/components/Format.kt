@@ -35,10 +35,6 @@ fun formatCompactAmount(v: Double): String = when {
     else -> String.format(Locale.US, "%.2f", v).trimEnd('0').trimEnd('.')
 }
 
-fun formatTime(ts: Long): String =
-    Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalTime()
-        .format(DateTimeFormatter.ofPattern("HH:mm"))
-
 fun formatDateTime(ts: Long): String =
     Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))

@@ -17,6 +17,8 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.view.isVisible
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
 
 /**
@@ -32,6 +34,12 @@ import com.nonen.Bookkeeping.core.Categories
  * 输入法弹出后可正常打字，失焦或操作完成自动还原到底部。新卡片会替换旧卡片（按忽略处理）。
  * 30 秒无操作自动消失。
  */
+/**
+ * 静态持有悬浮卡片的 View 引用：卡片是全局单例（同一时刻只有一张），
+ * 由 [removeCurrent] 在关闭/超时/替换时主动释放，不随 Activity 生命周期泄漏；
+ * 持有的 context 一律来自 applicationContext。
+ */
+@Suppress("StaticFieldLeak")
 object PaymentConfirmOverlay {
 
     private const val COLOR_INCOME = 0xFF34C759.toInt()
@@ -74,12 +82,6 @@ object PaymentConfirmOverlay {
     ) {
         val app = context.applicationContext
         mainHandler.post { showInternal(app, card, onConfirm, onDismiss, onError) }
-    }
-
-    /** 关闭当前卡片（不触发任何回调），用于清理 */
-    @Synchronized
-    fun hide() {
-        mainHandler.post { removeCurrent() }
     }
 
     private fun removeCurrent() {
@@ -165,7 +167,7 @@ object PaymentConfirmOverlay {
         // ---- 标题 ----
         val titleRow = LinearLayout(app).apply {
             orientation = LinearLayout.HORIZONTAL
-            addView(label("自动记账 · 请确认"))
+            addView(label(app.getString(R.string.overlay_title)))
             addView(TextView(app).apply {
                 text = card.sourceLabel
                 setTextColor(TEXT_SECONDARY)
@@ -178,12 +180,12 @@ object PaymentConfirmOverlay {
 
         // ---- 方向胶囊 + 金额 ----
         val expenseChip = TextView(app).apply {
-            text = "支出"
+            text = app.getString(R.string.type_expense)
             textSize = 14f
             setPadding(dp(14), dp(6), dp(14), dp(6))
         }
         val incomeChip = TextView(app).apply {
-            text = "收入"
+            text = app.getString(R.string.type_income)
             textSize = 14f
             setPadding(dp(14), dp(6), dp(14), dp(6))
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -247,14 +249,10 @@ object PaymentConfirmOverlay {
             }
         }
         fun toggleGrid() {
-            if (gridContainer.visibility == View.VISIBLE) {
-                gridContainer.visibility = View.GONE
-                gridToggle.text = "▾"
-            } else {
-                rebuildGrid()
-                gridContainer.visibility = View.VISIBLE
-                gridToggle.text = "▴"
-            }
+            val show = gridContainer.visibility != View.VISIBLE
+            if (show) rebuildGrid()
+            gridContainer.isVisible = show
+            gridToggle.text = if (show) "▴" else "▾"
         }
 
         fun refreshSelection() {
@@ -266,7 +264,7 @@ object PaymentConfirmOverlay {
             val list = if (isIncome) Categories.incomeCategories else Categories.expenseCategories
             if (selectedCategory !in list) selectedCategory = list.first()
             categoryView.text = selectedCategory
-            if (gridContainer.visibility == View.VISIBLE) rebuildGrid()
+            if (gridContainer.isVisible) rebuildGrid()
         }
         expenseChip.setOnClickListener {
             isIncome = false
@@ -300,8 +298,8 @@ object PaymentConfirmOverlay {
             background = solid(0x22FFFFFF.toInt(), 10)
             setPadding(dp(10), dp(8), dp(10), dp(8))
         }
-        val merchantEdit = editField("对方 / 商户（可修改）", card.counterparty.orEmpty())
-        val noteEdit = editField("备注（可修改）", card.description.orEmpty())
+        val merchantEdit = editField(app.getString(R.string.overlay_field_merchant), card.counterparty.orEmpty())
+        val noteEdit = editField(app.getString(R.string.overlay_field_note), card.description.orEmpty())
         noteEdit.imeOptions = EditorInfo.IME_ACTION_DONE
         noteEdit.setOnEditorActionListener { v, _, _ ->
             v.clearFocus()
@@ -320,10 +318,17 @@ object PaymentConfirmOverlay {
         noteEdit.onFocusChangeListener = focusListener
         merchantRef = merchantEdit
         noteRef = noteEdit
+        // EditText 的触摸监听只做「切窗口获焦 + 弹输入法」的准备工作，
+        // 点击语义已交给控件本身处理（ACTION_UP 时调用 performClick），
+        // 不是把点击事件吞掉，故 lint 的 ClickableViewAccessibility 不适用
+        @Suppress("ClickableViewAccessibility")
         fun wireEdit(edit: EditText) {
-            edit.setOnTouchListener { v, _ ->
+            edit.setOnTouchListener { v, event ->
+                if (event.actionMasked == android.view.MotionEvent.ACTION_UP) v.performClick()
                 enterEdit()
-                v.post { runCatching { imm?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT) } }
+                // 显式弹出输入法作兜底：卡片窗口是刚获得焦点的 OVERLAY 窗口，
+                // 系统不一定会自动弹；flag 传 0（SHOW_IMPLICIT 已废弃）
+                v.post { runCatching { imm?.showSoftInput(v, 0) } }
                 false
             }
         }
@@ -355,7 +360,7 @@ object PaymentConfirmOverlay {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(6), 0, dp(6))
             setOnClickListener { toggleGrid() }
-            val l = label("分类")
+            val l = label(app.getString(R.string.label_category))
             l.setPadding(0, 0, dp(12), 0)
             addView(l)
             addView(categoryView)
@@ -385,11 +390,11 @@ object PaymentConfirmOverlay {
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                 ).apply { marginStart = dp(10) }
             }
-            addView(pill("忽略", accent = false) {
+            addView(pill(app.getString(R.string.overlay_action_ignore), accent = false) {
                 removeCurrent()
                 onDismiss()
             })
-            addView(pill("记一笔", accent = true) {
+            addView(pill(app.getString(R.string.overlay_action_confirm), accent = true) {
                 val finalIncome = isIncome
                 val merchant = merchantEdit.text.toString().trim().ifEmpty { null }
                 val note = noteEdit.text.toString().trim().ifEmpty { null }
@@ -407,11 +412,11 @@ object PaymentConfirmOverlay {
             elevation = dp(10).toFloat()
             addView(titleRow)
             addView(amountRow)
-            addView(editRow("对方", merchantEdit))
-            addView(editRow("备注", noteEdit))
+            addView(editRow(app.getString(R.string.overlay_label_merchant), merchantEdit))
+            addView(editRow(app.getString(R.string.overlay_label_note), noteEdit))
             addView(categoryRow)
             addView(gridContainer)
-            addView(valueRow("时间", value(card.timeText)))
+            addView(valueRow(app.getString(R.string.overlay_label_time), value(card.timeText)))
             addView(buttons)
         }
 
@@ -441,7 +446,7 @@ object PaymentConfirmOverlay {
             wm?.addView(root, params)
             currentView = root
             currentDismiss = dismiss
-        } catch (t: Throwable) {
+        } catch (t: Exception) {
             // 系统真的拒绝了悬浮窗（含 MIUI/HyperOS 的询问/拒绝模式）：不再静默，降级给管线提示
             android.util.Log.w("PaymentConfirmOverlay", "addView failed", t)
             onError(t.message ?: t.javaClass.simpleName)

@@ -1,6 +1,5 @@
-package com.nonen.Bookkeeping
+package com.nonen.Bookkeeping.parse
 
-import com.nonen.Bookkeeping.parse.PaymentTextParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

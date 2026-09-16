@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nonen.Bookkeeping.AppContainer
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.AccessibilityUtil
 import com.nonen.Bookkeeping.core.HashUtil
 import com.nonen.Bookkeeping.data.db.TransactionEntity
@@ -15,6 +16,7 @@ import com.nonen.Bookkeeping.parse.BackupExcelParser
 import com.nonen.Bookkeeping.parse.WechatBillParser
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -26,6 +28,14 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     private val settings = container.settings
 
+    /**
+     * Application context：仅用于读取字符串资源与 ContentResolver。
+     * lint 的 StaticFieldLeak 针对 Activity/Fragment context，Application 实例与进程同生命周期，
+     * 不构成泄漏。
+     */
+    @Suppress("StaticFieldLeak")
+    private val ctx = container.appContext
+
     var autoRecord by mutableStateOf(true)
     var listenScope by mutableStateOf(ListenScope.ALL)
     var notifyOnRecord by mutableStateOf(true)
@@ -34,7 +44,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     var importing by mutableStateOf(false)
         private set
     /** -1 = 解析文件中（不定态进度），0..1 = 逐行导入进度 */
-    var importProgress by mutableStateOf(-1f)
+    var importProgress by mutableFloatStateOf(-1f)
         private set
     var statusMessage by mutableStateOf<String?>(null)
     var accessibilityEnabled by mutableStateOf(false)
@@ -106,7 +116,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             reclassifying = true
             val changed = container.transactionRepository.reclassifyAll()
             reclassifying = false
-            reclassifyResult = "已按当前规则重算，更新 $changed 条"
+            reclassifyResult = ctx.getString(R.string.status_reclassified, changed)
         }
     }
 
@@ -122,7 +132,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                     else -> AlipayBillParser.parse(bytes)
                 }
                 if (rows.none { !it.skipped }) {
-                    "未从文件中解析到有效账单记录，请确认选择了正确的账单文件"
+                    ctx.getString(R.string.status_import_empty)
                 } else {
                     importProgress = 0f
                     val total = rows.size
@@ -130,9 +140,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                         importProgress = done.toFloat() / total
                     })
                     importProgress = 1f
-                    "导入完成：成功 ${r.success} 条，重复 ${r.duplicates} 条，失败 ${r.failed} 条，忽略 ${r.skipped} 条"
+                    ctx.getString(R.string.status_import_done, r.success, r.duplicates, r.failed, r.skipped)
                 }
-            }.getOrElse { "导入失败：${it.message}" }
+            }.getOrElse { ctx.getString(R.string.status_import_failed, it.message.orEmpty()) }
             importing = false
         }
     }
@@ -145,9 +155,9 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                 val bytes = BackupExporter.buildXlsx(all)
                 container.appContext.contentResolver.openOutputStream(uri)
                     ?.use { it.write(bytes) }
-                    ?: error("无法写入所选文件")
-                "备份导出成功：共 ${all.size} 条记录（Excel）"
-            }.getOrElse { "导出失败：${it.message}" }
+                    ?: error(ctx.getString(R.string.error_cannot_write_file))
+                ctx.getString(R.string.status_backup_exported, all.size)
+            }.getOrElse { ctx.getString(R.string.status_backup_export_failed, it.message.orEmpty()) }
         }
     }
 
@@ -159,18 +169,20 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             statusMessage = runCatching {
                 val bytes = readBytesOrThrow(uri)
                 val rows = BackupExcelParser.parse(bytes)
-                    ?: error("不是本应用导出的 Excel 备份格式")
-                if (rows.isEmpty()) error("备份中没有账单记录")
+                    ?: error(ctx.getString(R.string.error_not_backup_format))
+                if (rows.isEmpty()) error(ctx.getString(R.string.error_backup_empty))
                 importProgress = 0f
                 val total = rows.size
                 var success = 0
                 var duplicates = 0
                 var failed = 0
                 rows.forEachIndexed { index, row ->
+                    val timestamp = row.timestamp
+                    val amount = row.amount
                     when {
-                        !row.typeValid || row.timestamp == null || row.amount == null -> failed++
+                        !row.typeValid || timestamp == null || amount == null -> failed++
                         else -> {
-                            val signed = if (row.isIncome) row.amount!! else -row.amount!!
+                            val signed = if (row.isIncome) amount else -amount
                             val source = row.source ?: "excel"
                             val entity = TransactionEntity(
                                 amount = signed,
@@ -181,10 +193,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                                     ),
                                 note = row.note,
                                 merchant = row.merchant,
-                                timestamp = row.timestamp!!,
+                                timestamp = timestamp,
                                 source = source,
                                 hash = row.hash
-                                    ?: HashUtil.transactionHash(row.timestamp!!, signed, row.merchant, source),
+                                    ?: HashUtil.transactionHash(timestamp, signed, row.merchant, source),
                             )
                             if (container.transactionRepository.insertIfNew(entity)) success++ else duplicates++
                         }
@@ -192,13 +204,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                     importProgress = (index + 1).toFloat() / total
                 }
                 importProgress = 1f
-                "备份导入完成：成功 $success 条，重复 $duplicates 条，失败 $failed 条"
-            }.getOrElse { "导入失败：${it.message}" }
+                ctx.getString(R.string.status_backup_imported, success, duplicates, failed)
+            }.getOrElse { ctx.getString(R.string.status_import_failed, it.message.orEmpty()) }
             importing = false
         }
     }
 
     private fun readBytesOrThrow(uri: Uri): ByteArray =
         container.appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("无法读取所选文件")
+            ?: error(ctx.getString(R.string.error_cannot_read_file))
 }

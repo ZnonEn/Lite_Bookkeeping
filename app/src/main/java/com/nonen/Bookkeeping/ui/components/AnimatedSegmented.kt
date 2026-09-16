@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -20,7 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -31,11 +30,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nonen.Bookkeeping.ui.motion.motionSpring
 import com.nonen.Bookkeeping.ui.motion.rememberReducedMotion
+import kotlin.math.roundToInt
 
 /**
  * 滑块式分段控件：选中的色块用弹簧滑动到目标段（可中断）。
@@ -58,7 +59,7 @@ fun AnimatedSegmented(
     val xSpec: FiniteAnimationSpec<Dp> = if (reduced) snap() else motionSpring()
     val colorSpec: FiniteAnimationSpec<Color> = if (reduced) snap() else motionSpring()
     val density = LocalDensity.current
-    var rowWidthPx by remember { mutableStateOf(0) }
+    var rowWidthPx by remember { mutableIntStateOf(0) }
 
     Box(
         modifier
@@ -82,7 +83,7 @@ fun AnimatedSegmented(
                 )
                 Box(
                     Modifier
-                        .offset(x = thumbX)
+                        .offset { IntOffset(with(density) { thumbX.roundToPx() }, 0) }
                         .width(with(density) { segWidthPx.toDp() })
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(thumbCorner))

@@ -1,7 +1,6 @@
 package com.nonen.Bookkeeping.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,6 +27,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,13 +35,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.data.repo.TransactionRepository
 import com.nonen.Bookkeeping.stats.StatsCalculator
 import com.nonen.Bookkeeping.stats.StatsData
 import com.nonen.Bookkeeping.stats.StatsPeriod
 import com.nonen.Bookkeeping.stats.StatsQuery
+import com.nonen.Bookkeeping.stats.StatsTitle
 import com.nonen.Bookkeeping.ui.components.AnimatedSegmented
 import com.nonen.Bookkeeping.ui.theme.ChartColors
 import com.nonen.Bookkeeping.ui.theme.ExpenseColor
@@ -63,7 +66,7 @@ class StatsViewModel(private val repo: TransactionRepository) : ViewModel() {
     var weekSel by mutableStateOf<Int?>(null)
     var customStart by mutableStateOf<LocalDate?>(null)
     var customEnd by mutableStateOf<LocalDate?>(null)
-    var customRequest by mutableStateOf(0)
+    var customRequest by mutableIntStateOf(0)
         private set
     var stats by mutableStateOf<StatsData?>(null)
         private set
@@ -186,7 +189,7 @@ private fun StatsHeaderSection(
 ) {
     Column {
         Text(
-            "统计",
+            stringResource(R.string.stats_title),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
@@ -197,7 +200,7 @@ private fun StatsHeaderSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AnimatedSegmented(
-                options = StatsPeriod.entries.map { it.label },
+                options = StatsPeriod.entries.map { stringResource(it.labelRes) },
                 selectedIndex = StatsPeriod.entries.indexOf(vm.period),
                 onSelected = { idx ->
                     val p = StatsPeriod.entries[idx]
@@ -206,7 +209,7 @@ private fun StatsHeaderSection(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = { vm.requestCustom() }) {
-                Icon(Icons.Default.DateRange, contentDescription = "自定义日期范围")
+                Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.cd_custom_date_range))
             }
         }
 
@@ -214,7 +217,7 @@ private fun StatsHeaderSection(
         when (vm.period) {
             StatsPeriod.YEAR -> {
                 SubFilterBar(
-                    options = listOf("全部") + (1..12).map { "${it}月" },
+                    options = listOf(stringResource(R.string.filter_all)) + (1..12).map { stringResource(R.string.format_month, it) },
                     selectedIndex = vm.monthSel,
                     onSelect = { idx -> vm.selectMonth(if (idx == 0) null else idx) },
                 )
@@ -223,7 +226,7 @@ private fun StatsHeaderSection(
             StatsPeriod.MONTH -> {
                 val weekCount = weekCountOfCurrentMonth()
                 SubFilterBar(
-                    options = listOf("全部") + (1..weekCount).map { "第${it}周" },
+                    options = listOf(stringResource(R.string.filter_all)) + (1..weekCount).map { stringResource(R.string.format_week_index, it) },
                     selectedIndex = vm.weekSel,
                     onSelect = { idx -> vm.selectWeek(if (idx == 0) null else idx) },
                 )
@@ -231,7 +234,7 @@ private fun StatsHeaderSection(
 
             StatsPeriod.WEEK -> {
                 SubFilterBar(
-                    options = listOf("上周", "本周"),
+                    options = listOf(stringResource(R.string.stats_last_week), stringResource(R.string.stats_period_week)),
                     selectedIndex = if (vm.weekSel == -1) 0 else 1,
                     onSelect = { idx -> vm.selectWeek(if (idx == 0) -1 else null) },
                 )
@@ -243,16 +246,16 @@ private fun StatsHeaderSection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    DateChip(vm.customStart?.toString() ?: "开始日期") { onPickDate(0) }
-                    Text("至", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    DateChip(vm.customEnd?.toString() ?: "结束日期") { onPickDate(1) }
+                    DateChip(vm.customStart?.toString() ?: stringResource(R.string.date_start_placeholder)) { onPickDate(0) }
+                    Text(stringResource(R.string.stats_date_range_separator), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    DateChip(vm.customEnd?.toString() ?: stringResource(R.string.date_end_placeholder)) { onPickDate(1) }
                 }
             }
         }
 
         // 支出 / 收入
         AnimatedSegmented(
-            options = listOf("支出", "收入"),
+            options = listOf(stringResource(R.string.type_expense), stringResource(R.string.type_income)),
             selectedIndex = if (vm.isIncome) 1 else 0,
             onSelected = { vm.setType(it == 1) },
             thumbColor = if (vm.isIncome) IncomeColor else ExpenseColor,
@@ -263,14 +266,18 @@ private fun StatsHeaderSection(
 
         stats ?: return
         Spacer(Modifier.height(12.dp))
-        TotalCard(title = stats.title, total = stats.total, count = stats.count)
+        TotalCard(
+            title = statsTitle(stats.title, vm.isIncome),
+            total = stats.total,
+            count = stats.count,
+        )
 
         Spacer(Modifier.height(8.dp))
         CompareCard(
             prevTotal = stats.prevTotal,
             total = stats.total,
             dailyAvg = stats.dailyAvg,
-            typeNoun = if (vm.isIncome) "收入" else "支出",
+            typeNoun = stringResource(if (vm.isIncome) R.string.type_income else R.string.type_expense),
             accentUp = ExpenseColor,
             accentDown = IncomeColor,
         )
@@ -282,9 +289,9 @@ private fun StatsHeaderSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("趋势图", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.stats_chart_title), style = MaterialTheme.typography.titleMedium)
             AnimatedSegmented(
-                options = listOf("趋势", "占比"),
+                options = listOf(stringResource(R.string.stats_chart_trend), stringResource(R.string.stats_chart_donut)),
                 selectedIndex = if (chartTrend) 0 else 1,
                 onSelected = { onChartTrendChange(it == 0) },
                 corner = 8.dp,
@@ -309,7 +316,7 @@ private fun StatsHeaderSection(
 
         if (stats.categories.isNotEmpty()) {
             Text(
-                "分类排行",
+                stringResource(R.string.stats_rank_title),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
@@ -342,10 +349,25 @@ private fun CustomRangePickerDialog(
                 }
                 onTargetChange(if (target == 0 && vm.customEnd == null) 1 else null)
                 if (target == 1) vm.load()
-            }) { Text(if (target == 0) "下一步" else "确定") }
+            }) { Text(stringResource(if (target == 0) R.string.action_next else R.string.action_confirm)) }
         },
-        dismissButton = { TextButton(onClick = { onTargetChange(null) }) { Text("取消") } },
+        dismissButton = { TextButton(onClick = { onTargetChange(null) }) { Text(stringResource(R.string.action_cancel)) } },
     ) { DatePicker(state = state) }
+}
+
+/** 统计标题本地化：把结构化标题（周期 + 收支方向）拼成展示文案 */
+@Composable
+private fun statsTitle(title: StatsTitle, isIncome: Boolean): String {
+    val noun = stringResource(if (isIncome) R.string.type_income else R.string.type_expense)
+    return when (title) {
+        StatsTitle.ThisWeek -> stringResource(R.string.stats_title_this_week, noun)
+        StatsTitle.LastWeek -> stringResource(R.string.stats_title_last_week, noun)
+        is StatsTitle.MonthWeek -> stringResource(R.string.stats_title_month_week, title.index, noun)
+        StatsTitle.ThisMonth -> stringResource(R.string.stats_title_this_month, noun)
+        is StatsTitle.MonthOfYear -> stringResource(R.string.stats_title_month_of_year, title.month, noun)
+        StatsTitle.ThisYear -> stringResource(R.string.stats_title_this_year, noun)
+        StatsTitle.Custom -> stringResource(R.string.stats_title_custom, noun)
+    }
 }
 
 private fun weekCountOfCurrentMonth(): Int {

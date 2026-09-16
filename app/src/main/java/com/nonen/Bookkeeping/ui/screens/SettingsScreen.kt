@@ -1,10 +1,10 @@
 package com.nonen.Bookkeeping.ui.screens
 
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,7 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.data.prefs.ListenScope
 import com.nonen.Bookkeeping.data.prefs.ThemeMode
 import com.nonen.Bookkeeping.debug.CaptureDebugCard
@@ -74,7 +76,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
             .verticalScroll(rememberScrollState()),
     ) {
         Text(
-            "设置",
+            stringResource(R.string.settings_title),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
@@ -82,27 +84,27 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
         AppearanceSection(vm)
 
         // 自动记账是核心功能且承载授权状态提醒，默认展开
-        CollapsibleSection(title = "自动记账", emoji = "⚡", initiallyExpanded = true) {
+        CollapsibleSection(title = stringResource(R.string.section_auto_record), emoji = "⚡", initiallyExpanded = true) {
             AutoRecordSection(vm)
             CaptureDebugCard()
             SectionDivider()
             ListenScopeSection(vm)
             SectionDivider()
             ToggleRow(
-                title = "自动记录成功后提醒",
-                subtitle = "发一条本地通知，方便核对",
+                title = stringResource(R.string.toggle_notify_title),
+                subtitle = stringResource(R.string.toggle_notify_subtitle),
                 checked = vm.notifyOnRecord,
                 onChecked = vm::updateNotify,
             )
             ToggleRow(
-                title = "手动改分类时自动学习",
-                subtitle = "记住你的修改，下次同类交易自动归类",
+                title = stringResource(R.string.toggle_learn_title),
+                subtitle = stringResource(R.string.toggle_learn_subtitle),
                 checked = vm.learnOnEdit,
                 onChecked = vm::updateLearn,
             )
         }
 
-        CollapsibleSection(title = "账单导入", emoji = "📥") {
+        CollapsibleSection(title = stringResource(R.string.section_bill_import), emoji = "📥") {
             BillImportSection(
                 importing = vm.importing,
                 importProgress = vm.importProgress,
@@ -112,7 +114,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
             )
         }
 
-        CollapsibleSection(title = "分类规则", emoji = "🏷️") {
+        CollapsibleSection(title = stringResource(R.string.section_category_rules), emoji = "🏷️") {
             CategoryRuleSection(
                 reclassifying = vm.reclassifying,
                 result = vm.reclassifyResult,
@@ -121,7 +123,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
             )
         }
 
-        CollapsibleSection(title = "数据备份", emoji = "💾") {
+        CollapsibleSection(title = stringResource(R.string.section_backup), emoji = "💾") {
             BackupSection(
                 importing = vm.importing,
                 importProgress = vm.importProgress,
@@ -131,7 +133,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
             )
         }
 
-        CollapsibleSection(title = "关于", emoji = "ℹ️") {
+        CollapsibleSection(title = stringResource(R.string.section_about), emoji = "ℹ️") {
             AboutSection(versionName = vm.versionName, onCheckUpdate = { showUpdateDialog = true })
         }
         Spacer(Modifier.height(96.dp))
@@ -140,27 +142,26 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     if (showUpdateDialog) {
         AlertDialog(
             onDismissRequest = { showUpdateDialog = false },
-            title = { Text("检查更新") },
+            title = { Text(stringResource(R.string.dialog_update_title)) },
             text = {
                 Column {
-                    Text("当前版本：v${vm.versionName}")
+                    Text(stringResource(R.string.dialog_update_current_version, vm.versionName))
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "为保护隐私，应用不申请网络权限，因此不会自动检查更新。" +
-                            "获取最新版本请前往 GitHub Releases 页面手动查看与下载。",
+                        stringResource(R.string.dialog_update_message),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) { Text("取消") }
+                TextButton(onClick = { showUpdateDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showUpdateDialog = false
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(RELEASE_PAGE_URL)))
-                }) { Text("前往 Releases") }
+                    context.startActivity(Intent(Intent.ACTION_VIEW, RELEASE_PAGE_URL.toUri()))
+                }) { Text(stringResource(R.string.action_go_releases)) }
             },
         )
     }
@@ -168,14 +169,14 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     if (showReclassifyDialog) {
         AlertDialog(
             onDismissRequest = { showReclassifyDialog = false },
-            title = { Text("重新分类历史账单") },
-            text = { Text("将按当前规则重算所有账单的分类，会覆盖手动改过的分类（手动学习产生的自定义规则仍然优先）。确定执行？") },
-            dismissButton = { TextButton(onClick = { showReclassifyDialog = false }) { Text("取消") } },
+            title = { Text(stringResource(R.string.dialog_reclassify_title)) },
+            text = { Text(stringResource(R.string.dialog_reclassify_message)) },
+            dismissButton = { TextButton(onClick = { showReclassifyDialog = false }) { Text(stringResource(R.string.action_cancel)) } },
             confirmButton = {
                 TextButton(onClick = {
                     showReclassifyDialog = false
                     vm.reclassifyAll()
-                }) { Text("确定") }
+                }) { Text(stringResource(R.string.action_confirm)) }
             },
         )
     }
@@ -183,16 +184,23 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     guideSource?.let { source ->
         AlertDialog(
             onDismissRequest = { guideSource = null },
-            title = { Text(if (source == WechatBillParser.SOURCE) "微信账单导出步骤" else "支付宝账单导出步骤") },
+            title = {
+                Text(
+                    stringResource(
+                        if (source == WechatBillParser.SOURCE) R.string.dialog_wechat_export_title
+                        else R.string.dialog_alipay_export_title,
+                    ),
+                )
+            },
             text = { Text(guideText(source)) },
             confirmButton = {
                 TextButton(onClick = {
                     pendingSource = source
                     importLauncher.launch(arrayOf("*/*"))
                     guideSource = null
-                }) { Text("选择文件") }
+                }) { Text(stringResource(R.string.action_choose_file)) }
             },
-            dismissButton = { TextButton(onClick = { guideSource = null }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { guideSource = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 }
@@ -200,11 +208,11 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
 /** 外观分组：主题模式单选 */
 @Composable
 private fun AppearanceSection(vm: SettingsViewModel) {
-    CollapsibleSection(title = "外观", emoji = "🎨") {
+    CollapsibleSection(title = stringResource(R.string.section_appearance), emoji = "🎨") {
         Column(Modifier.padding(vertical = 4.dp)) {
             ThemeMode.entries.forEach { mode ->
                 RadioRow(
-                    label = mode.label,
+                    label = stringResource(mode.labelRes),
                     selected = vm.themeMode == mode,
                     onClick = { vm.updateThemeMode(mode) },
                 )
@@ -218,15 +226,15 @@ private fun AppearanceSection(vm: SettingsViewModel) {
 private fun AutoRecordSection(vm: SettingsViewModel) {
     val context = LocalContext.current
     ToggleRow(
-        title = "启用自动记账",
-        subtitle = "检测到支付时弹出确认卡片，手动确认后登记入账",
+        title = stringResource(R.string.toggle_auto_record_title),
+        subtitle = stringResource(R.string.toggle_auto_record_subtitle),
         checked = vm.autoRecord,
         onChecked = vm::updateAutoRecord,
     )
 
     if (!vm.accessibilityEnabled) {
         Text(
-            "⚠ 无障碍服务未开启，自动记账不会生效",
+            stringResource(R.string.warning_accessibility_disabled),
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -234,13 +242,12 @@ private fun AutoRecordSection(vm: SettingsViewModel) {
         TextButton(
             onClick = { context.startActivity(Intent(SystemSettings.ACTION_ACCESSIBILITY_SETTINGS)) },
             modifier = Modifier.padding(horizontal = 8.dp),
-        ) { Text("去开启无障碍服务") }
+        ) { Text(stringResource(R.string.action_open_accessibility)) }
     }
 
     if (vm.accessibilityEnabled && !vm.overlayPermissionEnabled) {
         Text(
-            "检测到支付但没弹确认卡片？去 系统设置→应用→轻记账→权限 开启「显示悬浮窗」；" +
-                "MIUI/HyperOS 还需开启「后台弹出界面」与「锁屏显示」（部分系统此处显示未授权但实际可用，可直接付款试试）",
+            stringResource(R.string.hint_overlay_permission),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -250,17 +257,17 @@ private fun AutoRecordSection(vm: SettingsViewModel) {
                 context.startActivity(
                     Intent(
                         SystemSettings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}"),
+                        "package:${context.packageName}".toUri(),
                     ),
                 )
             },
             modifier = Modifier.padding(horizontal = 8.dp),
-        ) { Text("去授权悬浮窗") }
+        ) { Text(stringResource(R.string.action_grant_overlay)) }
     }
 
     if (vm.accessibilityEnabled && !vm.notificationAccessEnabled) {
         Text(
-            "微信/支付宝的支付页面对无障碍隐藏内容，建议同时开启「通知使用权」——支付完成后的系统通知会带金额，由它兜底记录",
+            stringResource(R.string.hint_notification_access),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -268,7 +275,7 @@ private fun AutoRecordSection(vm: SettingsViewModel) {
         TextButton(
             onClick = { context.startActivity(Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
             modifier = Modifier.padding(horizontal = 8.dp),
-        ) { Text("去开启通知使用权") }
+        ) { Text(stringResource(R.string.action_grant_notification_access)) }
     }
 }
 
@@ -278,7 +285,7 @@ private fun ListenScopeSection(vm: SettingsViewModel) {
     Column(Modifier.padding(vertical = 4.dp)) {
         ListenScope.entries.forEach { scope ->
             RadioRow(
-                label = scope.label,
+                label = stringResource(scope.labelRes),
                 selected = vm.listenScope == scope,
                 onClick = { vm.updateListenScope(scope) },
             )
@@ -297,14 +304,14 @@ private fun BillImportSection(
 ) {
     Column(Modifier.padding(16.dp)) {
         Text(
-            "从微信/支付宝导出账单文件后导入，自动去重、自动分类。\n微信为 xlsx 文件，支付宝为 csv 文件。",
+            stringResource(R.string.bill_import_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(12.dp))
         ActionButtonRow {
-            SettingsActionButton("导入微信账单", onImportWechat)
-            SettingsActionButton("导入支付宝账单", onImportAlipay)
+            SettingsActionButton(stringResource(R.string.action_import_wechat), onImportWechat)
+            SettingsActionButton(stringResource(R.string.action_import_alipay), onImportAlipay)
         }
     }
     if (importing) {
@@ -333,9 +340,9 @@ private fun CategoryRuleSection(
 ) {
     Column(Modifier.padding(16.dp)) {
         ActionButtonRow {
-            SettingsActionButton("管理分类规则", onManage)
+            SettingsActionButton(stringResource(R.string.action_manage_rules), onManage)
             SettingsActionButton(
-                text = if (reclassifying) "正在重算…" else "重新分类历史账单",
+                text = stringResource(if (reclassifying) R.string.action_reclassifying else R.string.action_reclassify),
                 onClick = onReclassify,
                 enabled = !reclassifying,
             )
@@ -358,14 +365,14 @@ private fun BackupSection(
 ) {
     Column(Modifier.padding(16.dp)) {
         Text(
-            "导出 / 导入本应用专属的 Excel 备份（.xlsx，可用 Excel/WPS 打开）；导入按校验码自动去重",
+            stringResource(R.string.backup_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(12.dp))
         ActionButtonRow {
-            SettingsActionButton("导出 Excel 备份", onExport)
-            SettingsActionButton("导入 Excel 备份", onImport)
+            SettingsActionButton(stringResource(R.string.action_export_backup), onExport)
+            SettingsActionButton(stringResource(R.string.action_import_backup), onImport)
         }
         if (importing) {
             Spacer(Modifier.height(10.dp))
@@ -385,28 +392,22 @@ private fun BackupSection(
 @Composable
 private fun AboutSection(versionName: String, onCheckUpdate: () -> Unit) {
     Column(Modifier.padding(16.dp)) {
-        Text("轻记账 v$versionName", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.about_version, versionName), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(4.dp))
         Text(
-            "本地记账 · 数据仅保存在本机 · 不请求网络权限",
+            stringResource(R.string.about_tagline),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    TextButton(onClick = onCheckUpdate, modifier = Modifier.padding(horizontal = 8.dp)) { Text("检查更新") }
+    TextButton(onClick = onCheckUpdate, modifier = Modifier.padding(horizontal = 8.dp)) {
+        Text(stringResource(R.string.action_check_update))
+    }
 }
 
+@Composable
 private fun guideText(source: String): String = if (source == WechatBillParser.SOURCE) {
-    "1. 打开微信：我 → 服务 → 钱包 → 账单\n" +
-        "2. 点击右上角「常见问题」\n" +
-        "3. 选择「下载账单」→「用于个人对账」\n" +
-        "4. 选择时间范围，发送到邮箱\n" +
-        "5. 在邮箱中下载账单 xlsx 文件\n" +
-        "6. 回到本应用，点击「选择文件」选中该文件"
+    stringResource(R.string.dialog_wechat_export_steps)
 } else {
-    "1. 打开支付宝：我的 → 账单\n" +
-        "2. 点击右上角「…」→「开具交易流水证明」\n" +
-        "3. 选择「用于个人对账」，选择时间范围\n" +
-        "4. 发送到邮箱并下载 csv 文件\n" +
-        "5. 回到本应用，点击「选择文件」选中该文件"
+    stringResource(R.string.dialog_alipay_export_steps)
 }

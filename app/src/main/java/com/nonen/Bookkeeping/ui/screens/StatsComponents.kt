@@ -44,8 +44,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.stats.CategoryStat
+import com.nonen.Bookkeeping.stats.BucketLabelKind
 import com.nonen.Bookkeeping.stats.StatsBucket
 import com.nonen.Bookkeeping.ui.components.formatCompactAmount
 import com.nonen.Bookkeeping.ui.components.formatPlainAmount
@@ -122,7 +125,7 @@ internal fun TotalCard(title: String, total: Double, count: Int) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "共 $count 笔记录",
+                stringResource(R.string.stats_total_records, count),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -148,7 +151,7 @@ internal fun CompareCard(
     ) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("环比上期", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.stats_compare_title), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (prevTotal > 0 || total > 0) {
                         val pct = when {
@@ -172,7 +175,7 @@ internal fun CompareCard(
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(
-                        "上期 ¥${formatPlainAmount(prevTotal)}",
+                        stringResource(R.string.stats_compare_previous, formatPlainAmount(prevTotal)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -180,7 +183,7 @@ internal fun CompareCard(
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("日均$typeNoun", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.stats_daily_average, typeNoun), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     "¥${formatPlainAmount(dailyAvg)}",
                     style = MaterialTheme.typography.bodyMedium,
@@ -197,7 +200,7 @@ internal fun CompareCard(
 internal fun BarChart(buckets: List<StatsBucket>, accent: Color) {
     if (buckets.isEmpty() || buckets.all { it.value <= 0.0 }) {
         Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-            Text("暂无数据", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.stats_no_data), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -260,7 +263,7 @@ private fun BarBucket(b: StatsBucket, maxV: Double, accent: Color, modifier: Mod
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            b.label,
+            bucketLabel(b.labelKind, b.labelValue),
             fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -269,13 +272,31 @@ private fun BarBucket(b: StatsBucket, maxV: Double, accent: Color, modifier: Mod
     }
 }
 
+/** 分桶标签本地化：按月 / 按日 / 按星期 */
+@Composable
+private fun bucketLabel(kind: BucketLabelKind, value: Int): String = when (kind) {
+    BucketLabelKind.MONTH -> stringResource(R.string.format_month, value)
+    BucketLabelKind.DAY -> stringResource(R.string.bucket_day, value)
+    BucketLabelKind.WEEKDAY -> stringResource(
+        when (value) {
+            0 -> R.string.weekday_sun
+            1 -> R.string.weekday_mon
+            2 -> R.string.weekday_tue
+            3 -> R.string.weekday_wed
+            4 -> R.string.weekday_thu
+            5 -> R.string.weekday_fri
+            else -> R.string.weekday_sat
+        },
+    )
+}
+
 /** 占比环图 + 图例 */
 @Composable
 internal fun DonutSection(categories: List<CategoryStat>, total: Double) {
     val slices = categories.filter { it.amount > 0 }.take(12)
     if (slices.isEmpty()) {
         Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-            Text("暂无数据", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.stats_no_data), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -302,7 +323,7 @@ internal fun DonutSection(categories: List<CategoryStat>, total: Double) {
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("总计", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.stats_donut_total), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     "¥${formatCompactAmount(total)}",
                     fontSize = 16.sp,
@@ -324,7 +345,7 @@ internal fun DonutSection(categories: List<CategoryStat>, total: Double) {
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "${c.category} ${(c.percent * 100).toString().take(4)}%",
+                            stringResource(R.string.stats_donut_legend, c.category, (c.percent * 100).toString().take(4)),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -385,7 +406,7 @@ internal fun RankCard(c: CategoryStat, color: Color) {
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                "${"%.1f".format(Locale.US, c.percent * 100)}% · ${c.count} 笔",
+                stringResource(R.string.stats_rank_summary, "%.1f".format(Locale.US, c.percent * 100), c.count),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

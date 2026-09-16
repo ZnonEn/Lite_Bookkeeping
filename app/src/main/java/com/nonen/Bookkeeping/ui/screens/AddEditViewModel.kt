@@ -2,6 +2,7 @@ package com.nonen.Bookkeeping.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.core.HashUtil
 import com.nonen.Bookkeeping.data.db.TransactionEntity
@@ -9,6 +10,7 @@ import com.nonen.Bookkeeping.data.repo.TransactionRepository
 import kotlinx.coroutines.launch
 import java.util.Locale
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
@@ -27,12 +29,13 @@ class AddEditViewModel(
     var category by mutableStateOf(Categories.expenseCategories.first())
     var note by mutableStateOf("")
     var merchant by mutableStateOf("")
-    var timestamp by mutableStateOf(System.currentTimeMillis())
+    var timestamp by mutableLongStateOf(System.currentTimeMillis())
     var loading by mutableStateOf(txId != 0L)
         private set
     var isEdit by mutableStateOf(false)
         private set
-    var errorMessage by mutableStateOf<String?>(null)
+    /** 表单校验/入库冲突的提示文案（资源 id，由 UI 层解析） */
+    var errorMessageRes by mutableStateOf<Int?>(null)
 
     private var original: TransactionEntity? = null
     private var originalCategory: String? = null
@@ -72,7 +75,7 @@ class AddEditViewModel(
     fun save(onDone: () -> Unit) {
         val value = amount.toDoubleOrNull()
         if (value == null || value <= 0.0) {
-            errorMessage = "请输入正确的金额"
+            errorMessageRes = R.string.error_invalid_amount
             return
         }
         viewModelScope.launch {
@@ -103,7 +106,7 @@ class AddEditViewModel(
                 if (repo.insertIfNew(entity)) {
                     onDone()
                 } else {
-                    errorMessage = "已存在完全相同的记录，请勿重复添加"
+                    errorMessageRes = R.string.error_duplicate_record
                 }
             }
         }

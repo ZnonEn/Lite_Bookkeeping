@@ -44,9 +44,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.ui.components.EmptyState
 import com.nonen.Bookkeeping.ui.components.TransactionRow
@@ -77,10 +77,10 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("搜索") },
+                title = { Text(stringResource(R.string.search_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -95,7 +95,7 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
                 TextField(
                     value = vm.keyword,
                     onValueChange = { vm.keyword = it },
-                    placeholder = { Text("金额 / 备注 / 商户 / 分类") },
+                    placeholder = { Text(stringResource(R.string.search_placeholder)) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
@@ -115,19 +115,19 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
-                FilterChip(selected = vm.type == null, onClick = { vm.type = null }, label = { Text("全部") })
-                FilterChip(selected = vm.type == "expense", onClick = { vm.type = "expense" }, label = { Text("支出") })
-                FilterChip(selected = vm.type == "income", onClick = { vm.type = "income" }, label = { Text("收入") })
+                FilterChip(selected = vm.type == null, onClick = { vm.type = null }, label = { Text(stringResource(R.string.filter_all)) })
+                FilterChip(selected = vm.type == "expense", onClick = { vm.type = "expense" }, label = { Text(stringResource(R.string.type_expense)) })
+                FilterChip(selected = vm.type == "income", onClick = { vm.type = "income" }, label = { Text(stringResource(R.string.type_income)) })
 
                 Box {
                     FilterChip(
                         selected = vm.category != null,
                         onClick = { categoryMenu = true },
-                        label = { Text(vm.category ?: "分类") },
+                        label = { Text(vm.category ?: stringResource(R.string.label_category)) },
                     )
                     DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }) {
                         DropdownMenuItem(
-                            text = { Text("全部分类") },
+                            text = { Text(stringResource(R.string.filter_all_categories)) },
                             onClick = { vm.category = null; categoryMenu = false },
                         )
                         vm.allCategories.forEach { c ->
@@ -142,23 +142,23 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
                 FilterChip(
                     selected = vm.startDate != null,
                     onClick = { datePickTarget = "start" },
-                    label = { Text(dateChipLabel("开始", vm.startDate)) },
+                    label = { Text(dateChipLabel(stringResource(R.string.date_start_prefix), R.string.date_start_placeholder, vm.startDate)) },
                 )
                 FilterChip(
                     selected = vm.endDate != null,
                     onClick = { datePickTarget = "end" },
-                    label = { Text(dateChipLabel("结束", vm.endDate)) },
+                    label = { Text(dateChipLabel(stringResource(R.string.date_end_prefix), R.string.date_end_placeholder, vm.endDate)) },
                 )
             }
 
             if (vm.startDate != null || vm.endDate != null || vm.category != null || vm.type != null) {
-                TextButton(onClick = vm::resetFilters) { Text("重置筛选") }
+                TextButton(onClick = vm::resetFilters) { Text(stringResource(R.string.action_reset_filters)) }
             }
 
             Spacer(Modifier.height(4.dp))
             if (vm.results.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    EmptyState(icon = "✎", text = "没有匹配的记录")
+                    EmptyState(icon = "✎", text = stringResource(R.string.search_empty))
                 }
             } else {
                 LazyColumn(Modifier.weight(1f)) {
@@ -187,13 +187,17 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
                         if (target == "start") vm.startDate = picked else vm.endDate = picked
                     }
                     datePickTarget = null
-                }) { Text("确定") }
+                }) { Text(stringResource(R.string.action_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { datePickTarget = null }) { Text("取消") } },
+            dismissButton = {
+                TextButton(onClick = { datePickTarget = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
         ) { DatePicker(state = state) }
     }
 }
 
-private fun dateChipLabel(prefix: String, date: LocalDate?): String =
+/** 日期筛选胶囊文案：未选中时显示占位（如「开始日期」），选中后显示具体日期 */
+@Composable
+private fun dateChipLabel(prefix: String, placeholderRes: Int, date: LocalDate?): String =
     date?.let { "$prefix ${formatDate(it.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())}" }
-        ?: "${prefix}日期"
+        ?: stringResource(placeholderRes)

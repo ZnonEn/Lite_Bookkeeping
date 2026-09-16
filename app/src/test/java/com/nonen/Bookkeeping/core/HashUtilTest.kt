@@ -1,6 +1,5 @@
-package com.nonen.Bookkeeping
+package com.nonen.Bookkeeping.core
 
-import com.nonen.Bookkeeping.core.HashUtil
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test

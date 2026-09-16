@@ -20,11 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.nonen.Bookkeeping.R
 import com.nonen.Bookkeeping.core.Categories
 import com.nonen.Bookkeeping.data.db.TransactionEntity
 import com.nonen.Bookkeeping.ui.motion.rememberPressScale
@@ -126,14 +127,14 @@ fun DayHeader(date: LocalDate, income: Double, expense: Double) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (expense > 0) {
                 Text(
-                    "支 ¥${formatPlainAmount(expense)}",
+                    stringResource(R.string.day_header_expense, formatPlainAmount(expense)),
                     style = MaterialTheme.typography.labelSmall,
                     color = ExpenseColor,
                 )
             }
             if (income > 0) {
                 Text(
-                    "收 ¥${formatPlainAmount(income)}",
+                    stringResource(R.string.day_header_income, formatPlainAmount(income)),
                     style = MaterialTheme.typography.labelSmall,
                     color = IncomeColor,
                 )
@@ -160,15 +161,4 @@ fun EmptyState(
             )
         }
     }
-}
-
-/** 首页大卡片用的纯色状态点（备用） */
-@Composable
-fun ColorDot(color: Color) {
-    Box(
-        modifier = Modifier
-            .size(8.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(color)
-    )
 }

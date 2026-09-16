@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+  Android 12 及以下的备份规则（fullBackupContent）。
+  本应用定位「数据只留本机」，默认不让账本进云端/换机备份；
+  用户要迁移数据请用设置页的「导出 Excel 备份」显式操作。
+  规则与 data_extraction_rules.xml（Android 12+）保持一致。
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- 账本数据库：全部流水、商户与金额，不参与自动备份 -->
+    <exclude domain="database" path="bookkeeping.db" />
+    <exclude domain="database" path="bookkeeping.db-shm" />
+    <exclude domain="database" path="bookkeeping.db-wal" />
+    <!-- 设置与抓取调试开关 -->
+    <exclude domain="sharedpref" path="." />
+    <!-- DataStore 偏好设置 -->
+    <exclude domain="file" path="datastore" />
 </full-backup-content>
