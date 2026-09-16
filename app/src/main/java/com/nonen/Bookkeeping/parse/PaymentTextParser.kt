@@ -140,7 +140,7 @@ object WindowCaptureAnalyzer {
      * 支付成功页专用提取：
      * 定位「支付成功/付款成功/转账成功」等标记节点，取其下方第一个独立金额节点作为实付金额——
      * 页面更下方的优惠券、积分、推荐位数字全部跳过；金额之后第一段纯文本作为商户。
-     * 无障碍与 OCR 抓到的都是自上而下的有序文本，顺序即版式。
+     * 无障碍抓到的文本是自上而下的有序文本，顺序即版式。
      */
     private fun parseSuccessPage(texts: List<String>): ParsedPayment? {
         val markerIdx = texts.indexOfFirst { t ->
