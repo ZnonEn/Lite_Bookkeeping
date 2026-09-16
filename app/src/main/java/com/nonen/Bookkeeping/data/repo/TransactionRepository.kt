@@ -1,7 +1,12 @@
 package com.nonen.Bookkeeping.data.repo
 
+import com.nonen.Bookkeeping.core.CategorizationRules
+import com.nonen.Bookkeeping.core.MerchantKey
+import com.nonen.Bookkeeping.core.PlatformCategories
 import com.nonen.Bookkeeping.core.RuleEngine
 import com.nonen.Bookkeeping.data.db.CategoryRuleDao
+import com.nonen.Bookkeeping.data.db.MerchantCategoryDao
+import com.nonen.Bookkeeping.data.db.MerchantCategoryEntity
 import com.nonen.Bookkeeping.data.db.TransactionDao
 import com.nonen.Bookkeeping.data.db.TransactionEntity
 import com.nonen.Bookkeeping.data.prefs.SettingsStore
@@ -13,6 +18,7 @@ import java.time.ZoneId
 class TransactionRepository(
     private val dao: TransactionDao,
     private val ruleDao: CategoryRuleDao,
+    private val merchantDao: MerchantCategoryDao,
     private val settings: SettingsStore,
 ) {
     fun observeMonth(month: YearMonth): Flow<List<TransactionEntity>> {
@@ -57,15 +63,22 @@ class TransactionRepository(
     suspend fun getRange(start: Long, end: Long): List<TransactionEntity> = dao.getRange(start, end)
 
     /**
-     * 按当前分类规则重算全部历史账单的分类（会覆盖手动改过的分类，自定义学习规则优先生效）。
+     * 按当前分类依据重算全部历史账单的分类（含商户记忆；会覆盖手动改过的分类）。
+     * 每笔的商户若已有记忆，以记忆为准。
+     *
      * @return 实际改动了分类的条数
      */
     suspend fun reclassifyAll(): Int {
-        val rules = ruleDao.getAll()
+        val rules = CategorizationRules(rules = ruleDao.getAll(), merchants = merchantDao.getAll())
         var updated = 0
         for (t in dao.getAll()) {
             val text = listOfNotNull(t.merchant, t.note).joinToString(" ")
-            val category = RuleEngine.matchRules(text, t.amount > 0, rules)
+            val category = RuleEngine.classify(
+                text = text,
+                isIncome = t.amount > 0,
+                rules = rules,
+                merchant = t.merchant,
+            )
             if (category != t.category) {
                 dao.update(t.copy(category = category, updatedAt = System.currentTimeMillis()))
                 updated++
@@ -75,30 +88,42 @@ class TransactionRepository(
     }
 
     /**
-     * 用户手动修改某笔交易分类时，把该笔交易的商户/备注关键词学习为自定义规则，
-     * 下次遇到相同关键词自动归入同类（自动分类的本地优化）。
+     * 用户手动修改某笔交易分类时学习：记下「这个商户属于这个分类」。
+     *
+     * 学习结果写入 merchant_categories（按归一化商户名精确/包含匹配），
+     * 而不是把商户名截断成关键词塞进 category_rules——后者走子串匹配，
+     * 长商户名（「星巴克臻选上海南京西路店」）截断后几乎再也匹配不到，
+     * 短商户名又容易误伤。商户记忆是最具体的一层依据，优先于所有关键词规则。
      */
     suspend fun learnFromEdit(entity: TransactionEntity, oldCategory: String?) {
         if (entity.category == oldCategory) return
         if (!settings.learnOnEdit.first()) return
-        val keyword = keywordOf(entity) ?: return
-        if (keyword.length < 2) return
-        ruleDao.insert(
-            com.nonen.Bookkeeping.data.db.CategoryRuleEntity(
-                keyword = keyword,
-                category = entity.category,
-                isCustom = true,
-            )
-        )
+        learnMerchant(entity.merchant, entity.category, entity.amount > 0)
     }
 
-    private fun keywordOf(entity: TransactionEntity): String? {
-        val raw = entity.merchant?.takeIf { it.isNotBlank() }
-            ?: entity.note?.takeIf { it.isNotBlank() }
-            ?: return null
-        // 去掉括号里的分店/编号等修饰，如「肯德基（XX路店）」→「肯德基」
-        var keyword = raw.trim().replace(Regex("[（(【\\[].*?[）)】\\]]"), "").trim()
-        if (keyword.isEmpty()) keyword = raw.trim()
-        return keyword.take(20)
+    /**
+     * 自动记账确认卡片里用户确认分类时学习——这是最高价值的学习时刻：
+     * 用户亲手把某个商户归到了某个分类，下次同一商户应直接命中。
+     */
+    suspend fun learnFromConfirm(merchant: String?, category: String, isIncome: Boolean) {
+        if (!settings.learnOnEdit.first()) return
+        learnMerchant(merchant, category, isIncome)
+    }
+
+    /** 记下「该商户在此方向上是这个分类」；商户为空或分类不属于该方向时忽略 */
+    private suspend fun learnMerchant(merchant: String?, category: String, isIncome: Boolean) {
+        val key = MerchantKey.normalize(merchant) ?: return
+        if (category !in PlatformCategories.allowedCategories(isIncome)) return
+        val existing = merchantDao.find(key, isIncome)
+        merchantDao.upsert(
+            MerchantCategoryEntity(
+                id = existing?.id ?: 0L,
+                merchantKey = key,
+                category = category,
+                isIncome = isIncome,
+                hits = (existing?.hits ?: 0) + 1,
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
     }
 }

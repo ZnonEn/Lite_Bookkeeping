@@ -56,7 +56,7 @@ object AlipayBillParser {
                     isIncome = dir == "收入",
                     merchant = party.ifEmpty { null },
                     note = goods.ifEmpty { null },
-                    categoryHint = cat.ifEmpty { null },
+                    platformCategory = cat.ifEmpty { null },
                     rawData = raw,
                 )
             }

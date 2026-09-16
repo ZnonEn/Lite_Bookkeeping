@@ -64,12 +64,20 @@ class RulesViewModel(private val ruleRepo: RuleRepository) : ViewModel() {
     val rules = ruleRepo.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun add(keyword: String, category: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(ruleRepo.add(keyword, category)) }
+    /** 已学习的商户记忆条数（改分类时自动积累） */
+    val merchantCount = ruleRepo.observeMerchantCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun add(keyword: String, category: String, isIncome: Boolean, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(ruleRepo.add(keyword, category, isIncome)) }
     }
 
     fun delete(id: Long) {
         viewModelScope.launch { ruleRepo.delete(id) }
+    }
+
+    fun clearMerchantMemory() {
+        viewModelScope.launch { ruleRepo.clearMerchantMemory() }
     }
 }
 
@@ -77,7 +85,9 @@ class RulesViewModel(private val ruleRepo: RuleRepository) : ViewModel() {
 @Composable
 fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
     val rules by vm.rules.collectAsState()
+    val merchantCount by vm.merchantCount.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
+    var confirmClearMemory by remember { mutableStateOf(false) }
     var duplicateWarning by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -123,6 +133,10 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
                     modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
+            MerchantMemoryCard(
+                count = merchantCount,
+                onClear = vm::clearMerchantMemory,
+            )
             LazyColumn {
                 items(rules, key = { it.id }) { rule ->
                     Card(
@@ -162,8 +176,8 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
     if (showAdd) {
         AddRuleDialog(
             onDismiss = { showAdd = false },
-            onConfirm = { keyword, category ->
-                vm.add(keyword, category) { ok -> if (!ok) duplicateWarning = true }
+            onConfirm = { keyword, category, isIncome ->
+                vm.add(keyword, category, isIncome) { ok -> if (!ok) duplicateWarning = true }
                 showAdd = false
             },
         )
@@ -177,10 +191,55 @@ fun RulesScreen(vm: RulesViewModel, onBack: () -> Unit) {
             confirmButton = { TextButton(onClick = { duplicateWarning = false }) { Text(stringResource(R.string.action_ok)) } },
         )
     }
+
+    if (confirmClearMemory) {
+        AlertDialog(
+            onDismissRequest = { confirmClearMemory = false },
+            title = { Text(stringResource(R.string.dialog_clear_memory_title)) },
+            text = { Text(stringResource(R.string.dialog_clear_memory_message)) },
+            dismissButton = {
+                TextButton(onClick = { confirmClearMemory = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClearMemory = false
+                    vm.clearMerchantMemory()
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+        )
+    }
+}
+
+/** 商户记忆卡片：说明来源、显示条数、提供清空入口（关键词规则不受影响） */
+@Composable
+private fun MerchantMemoryCard(count: Int, onClear: () -> Unit) {
+    Card(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.merchant_memory_title), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.merchant_memory_summary, count),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (count > 0) {
+                TextButton(onClick = onClear) { Text(stringResource(R.string.action_clear)) }
+            }
+        }
+    }
 }
 
 @Composable
-private fun AddRuleDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+private fun AddRuleDialog(onDismiss: () -> Unit, onConfirm: (String, String, Boolean) -> Unit) {
     var keyword by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(Categories.expenseCategories.first()) }
     var menu by remember { mutableStateOf(false) }
@@ -221,7 +280,10 @@ private fun AddRuleDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> 
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(keyword, category) }) { Text(stringResource(R.string.action_add)) }
+            val isIncome = category in Categories.incomeCategories
+            TextButton(onClick = { onConfirm(keyword, category, isIncome) }) {
+                Text(stringResource(R.string.action_add))
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )

@@ -72,6 +72,10 @@ interface CategoryRuleDao {
     @Query("SELECT * FROM category_rules WHERE keyword = :keyword LIMIT 1")
     suspend fun findByKeyword(keyword: String): CategoryRuleEntity?
 
+    /** 该关键词是否已存在（不分方向，用于「添加规则」时的重复提示） */
+    @Query("SELECT COUNT(*) FROM category_rules WHERE keyword = :keyword")
+    suspend fun countByKeyword(keyword: String): Int
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(rule: CategoryRuleEntity): Long
 
@@ -84,4 +88,24 @@ interface CategoryRuleDao {
 
     @Query("DELETE FROM category_rules WHERE id = :id")
     suspend fun deleteById(id: Long)
+}
+
+@Dao
+interface MerchantCategoryDao {
+
+    @Query("SELECT * FROM merchant_categories")
+    suspend fun getAll(): List<MerchantCategoryEntity>
+
+    @Query("SELECT * FROM merchant_categories WHERE merchantKey = :key AND isIncome = :isIncome LIMIT 1")
+    suspend fun find(key: String, isIncome: Boolean): MerchantCategoryEntity?
+
+    @Query("SELECT COUNT(*) FROM merchant_categories")
+    fun observeCount(): Flow<Int>
+
+    /** 同一商户同一方向只保留一条：存在则改分类并累加纠正次数 */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: MerchantCategoryEntity)
+
+    @Query("DELETE FROM merchant_categories")
+    suspend fun clearAll()
 }
