@@ -37,14 +37,14 @@
 
 ### 其他
 - 搜索：关键词、收支类型、分类、时间范围多条件过滤
-- 分类规则管理：自定义关键词 → 分类映射
-- 数据备份：一键导出 / 导入 Excel 备份（.xlsx）
+- 数据备份：一键导出 / 导入 Excel 备份（.xlsx），导入按校验码自动去重
+- 重新分类：按当前依据重算全部历史账单的分类
 - 检查更新：应用不联网，通过系统浏览器跳转 GitHub Releases 查看新版本
 - 深色 / 浅色模式，Apple 风格界面与转场动效
 
 ## 下载
 
-从 [GitHub Releases](https://github.com/ZnonEn/Lite_Bookkeeping/releases/latest) 下载最新的 APK 安装。
+从 [GitHub Releases](https://github.com/ZnonEn/Lite_Bookkeeping/releases/latest) 下载最新的 APK 安装，各版本改动见 Releases 说明。
 
 ## 隐私
 
@@ -83,13 +83,13 @@ app/src/main/java/
 ├── com/google/android/accessibility/selecttospeak/
 │                 # 无障碍服务本体（类名伪装为系统「随选朗读」，勿改）
 └── com/nonen/Bookkeeping/
-    ├── core/        # 分类规则引擎、哈希、通用工具
+    ├── core/        # 分类体系与依据（关键词规则、平台映射、商户记忆）、哈希、xlsx 写入
     ├── data/
-    │   ├── db/      # Room 实体与 DAO
+    │   ├── db/      # Room 实体、DAO 与迁移
     │   ├── prefs/   # DataStore 设置
     │   └── repo/    # 仓库层
     ├── debug/       # 抓取调试统一入口（主源集为空实现，test 分支 src/debug 源集提供真实实现）
-    ├── parse/       # 微信/支付宝账单解析、支付成功页文本解析、导入器
+    ├── parse/       # 微信/支付宝账单解析、支付结果页文本解析、导入器
     ├── service/     # 无障碍自动记账、通知使用权监听、悬浮确认卡片
     ├── stats/       # 统计区间与聚合计算（纯函数，可单测）
     ├── ui/
