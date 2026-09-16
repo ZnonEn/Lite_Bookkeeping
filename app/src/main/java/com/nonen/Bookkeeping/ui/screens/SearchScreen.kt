@@ -1,6 +1,5 @@
 package com.nonen.Bookkeeping.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +26,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -41,84 +41,27 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewModelScope
 import com.nonen.Bookkeeping.core.Categories
-import com.nonen.Bookkeeping.data.db.TransactionEntity
-import com.nonen.Bookkeeping.data.repo.TransactionRepository
+import com.nonen.Bookkeeping.ui.components.EmptyState
 import com.nonen.Bookkeeping.ui.components.TransactionRow
 import com.nonen.Bookkeeping.ui.components.formatDate
 import com.nonen.Bookkeeping.ui.components.localDateOf
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 
-class SearchViewModel(private val repo: TransactionRepository) : ViewModel() {
-
-    var keyword by mutableStateOf("")
-    var type by mutableStateOf<String?>(null) // null 全部 / income / expense
-    var category by mutableStateOf<String?>(null)
-    var startDate by mutableStateOf<LocalDate?>(null)
-    var endDate by mutableStateOf<LocalDate?>(null)
-
-    var results by mutableStateOf<List<TransactionEntity>>(emptyList())
-        private set
-    var allCategories by mutableStateOf<List<String>>(emptyList())
-        private set
-
-    private val refreshTick = MutableStateFlow(0)
-
-    init {
-        viewModelScope.launch {
-            allCategories = repo.allCategories()
-        }
-        viewModelScope.launch { observeFilters() }
-        viewModelScope.launch {
-            refreshTick.collectLatest {
-                allCategories = repo.allCategories()
-                runSearch()
-            }
-        }
-    }
-
-    /** 从编辑页返回时刷新结果与分类列表 */
-    fun refresh() {
-        refreshTick.value++
-    }
-
-    @OptIn(FlowPreview::class)
-    private suspend fun observeFilters() {
-        snapshotFlow { Triple(keyword, type to category, startDate to endDate) }
-            .debounce(250)
-            .collectLatest { runSearch() }
-    }
-
-    private suspend fun runSearch() {
-        val zone = ZoneId.systemDefault()
-        val start = startDate?.atStartOfDay(zone)?.toInstant()?.toEpochMilli() ?: 0L
-        val end = endDate?.plusDays(1)?.atStartOfDay(zone)?.toInstant()?.toEpochMilli() ?: Long.MAX_VALUE
-        results = repo.search(keyword, category, type, start, end)
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit) {
     // 从编辑页返回时自动刷新（返回会触发 ON_RESUME）
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) vm.refresh()
@@ -136,7 +79,7 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
             TopAppBar(
                 title = { Text("搜索") },
                 navigationIcon = {
-                    androidx.compose.material3.IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -199,32 +142,23 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
                 FilterChip(
                     selected = vm.startDate != null,
                     onClick = { datePickTarget = "start" },
-                    label = { Text(vm.startDate?.let { "开始 ${formatDate(it.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())}" } ?: "开始日期") },
+                    label = { Text(dateChipLabel("开始", vm.startDate)) },
                 )
                 FilterChip(
                     selected = vm.endDate != null,
                     onClick = { datePickTarget = "end" },
-                    label = { Text(vm.endDate?.let { "结束 ${formatDate(it.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())}" } ?: "结束日期") },
+                    label = { Text(dateChipLabel("结束", vm.endDate)) },
                 )
             }
 
             if (vm.startDate != null || vm.endDate != null || vm.category != null || vm.type != null) {
-                TextButton(onClick = {
-                    vm.startDate = null
-                    vm.endDate = null
-                    vm.category = null
-                    vm.type = null
-                }) { Text("重置筛选") }
+                TextButton(onClick = vm::resetFilters) { Text("重置筛选") }
             }
 
             Spacer(Modifier.height(4.dp))
             if (vm.results.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("✎", fontSize = 36.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text("没有匹配的记录", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                    }
+                    EmptyState(icon = "✎", text = "没有匹配的记录")
                 }
             } else {
                 LazyColumn(Modifier.weight(1f)) {
@@ -238,7 +172,7 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
     }
 
     datePickTarget?.let { target ->
-        val initial = (if (target == "start") vm.startDate else vm.endDate)
+        val initial = if (target == "start") vm.startDate else vm.endDate
         val initialUtc = remember(target, initial) {
             (initial ?: localDateOf(System.currentTimeMillis()))
                 .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -259,3 +193,7 @@ fun SearchScreen(vm: SearchViewModel, onBack: () -> Unit, onEdit: (Long) -> Unit
         ) { DatePicker(state = state) }
     }
 }
+
+private fun dateChipLabel(prefix: String, date: LocalDate?): String =
+    date?.let { "$prefix ${formatDate(it.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())}" }
+        ?: "${prefix}日期"

@@ -30,55 +30,11 @@ import com.nonen.Bookkeeping.data.db.TransactionEntity
 import com.nonen.Bookkeeping.ui.motion.rememberPressScale
 import com.nonen.Bookkeeping.ui.theme.ExpenseColor
 import com.nonen.Bookkeeping.ui.theme.IncomeColor
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
-import kotlin.math.abs
-
-fun formatAmount(amount: Double): String {
-    val value = String.format(Locale.US, "%.2f", abs(amount))
-    return if (amount < 0) "-¥$value" else "+¥$value"
-}
-
-fun formatSignedPlain(amount: Double): String {
-    val value = String.format(Locale.US, "%.2f", abs(amount))
-    return if (amount < 0) "-¥$value" else "¥$value"
-}
-
-fun formatPlainAmount(amount: Double): String = String.format(Locale.US, "%.2f", amount)
-
-fun formatTime(ts: Long): String =
-    Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalTime()
-        .format(DateTimeFormatter.ofPattern("HH:mm"))
-
-fun formatDateTime(ts: Long): String =
-    Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-
-fun formatDate(ts: Long): String =
-    Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalDate()
-        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-
-fun localDateOf(ts: Long): LocalDate =
-    Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalDate()
-
-/** 日期分组标签：今天 / 昨天 / M月d日 */
-fun dateLabel(date: LocalDate): String {
-    val today = LocalDate.now()
-    return when (date) {
-        today -> "今天"
-        today.minusDays(1) -> "昨天"
-        else -> date.format(DateTimeFormatter.ofPattern("M月d日"))
-    }
-}
-
-fun monthDayLabel(ts: Long): String =
-    localDateOf(ts).format(DateTimeFormatter.ofPattern("M月d日"))
 
 /**
- * 交易行卡片：46dp 分类 emoji 圆角芯片（收支色 10% 底）+ 分类/备注 + 右对齐金额与日期。
+ * 账单行卡片：46dp 分类 emoji 圆角芯片（收支色 10% 底）+ 分类/备注 + 右对齐金额与日期。
+ * 首页、搜索页共用。
  */
 @Composable
 fun TransactionRow(tx: TransactionEntity, onClick: () -> Unit) {
@@ -151,9 +107,7 @@ fun TransactionRow(tx: TransactionEntity, onClick: () -> Unit) {
     }
 }
 
-/**
- * 日分组头：今天/昨天/M月d日 + 当日收支（收支色）。
- */
+/** 日分组头：今天/昨天/M月d日 + 当日收支（收支色） */
 @Composable
 fun DayHeader(date: LocalDate, income: Double, expense: Double) {
     Row(
@@ -184,6 +138,26 @@ fun DayHeader(date: LocalDate, income: Double, expense: Double) {
                     color = IncomeColor,
                 )
             }
+        }
+    }
+}
+
+/** 空状态占位（首页/搜索无结果时共用） */
+@Composable
+fun EmptyState(
+    icon: String,
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(icon, fontSize = 36.sp)
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
