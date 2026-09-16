@@ -17,7 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * 无障碍窗口 / 通知监听 / OCR 三条抓取通道共用的解析与确认管线。
+ * 无障碍窗口 / 通知监听两条抓取通道共用的解析与确认管线。
  *
  * 半自动模式：解析成功后**不再静默入库**，而是去重后弹出确认卡片
  * （PaymentConfirmOverlay），用户核对登记信息、点「记一笔」才写库。
@@ -28,7 +28,7 @@ object AutoRecordPipeline {
 
     private val recentSignatures = HashMap<String, Long>()
     private val dismissedSignatures = HashMap<String, Long>()
-    // 跨通道去重窗口：通知/窗口/OCR 三条通道对同一笔的触发间隔在几秒内，60 秒足够；
+    // 跨通道去重窗口：通知/窗口两条通道对同一笔的触发间隔在几秒内，60 秒足够；
     // 太长会把「短时间内连续两笔同额支付」（公交、测试）误拦成重复
     private const val SIGNATURE_TTL_MS = 60 * 1000L
     /** 忽略后的免打扰窗口：同一笔在窗口内重复抓到不再弹卡片打扰 */
@@ -62,7 +62,7 @@ object AutoRecordPipeline {
         if (parsed != null) present(context, parsed, pkg, origin, listOf(text.take(60)), s)
     }
 
-    /** 窗口文本通道（无障碍页面抓取 / OCR 屏幕识别） */
+    /** 窗口文本通道（无障碍页面抓取） */
     suspend fun handleWindowTexts(
         context: Context,
         pkg: String,

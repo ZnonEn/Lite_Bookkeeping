@@ -10,7 +10,6 @@ import com.nonen.Bookkeeping.data.prefs.Packages
 import com.nonen.Bookkeeping.data.prefs.SettingsSnapshot
 import com.nonen.Bookkeeping.debug.CaptureDebug
 import com.nonen.Bookkeeping.service.AutoRecordPipeline
-import com.nonen.Bookkeeping.service.OcrEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,9 +27,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 改名会导致微信重新隐藏内容，且用户需要重新开启无障碍服务。
  *
  * 职责：
- * 1. 监听微信/支付宝的窗口变化，对支付结果页做启发式抓取（部分页面仍可能隐藏，OCR 兜底见 OcrCaptureService）；
+ * 1. 监听微信/支付宝的窗口变化，对支付结果页做启发式抓取（部分页面系统仍会隐藏内容）；
  * 2. 旧系统的通知事件也顺带解析；
- * 3. 解析成功 → 去重 → 自动分类 → 写入本地数据库（source = auto），入库统一走 AutoRecordPipeline。
+ * 3. 解析成功 → 去重 → 自动分类 → 弹确认卡片，用户确认后入库，统一走 AutoRecordPipeline。
  */
 class SelectToSpeakService : AccessibilityService() {
 
@@ -166,11 +165,9 @@ class SelectToSpeakService : AccessibilityService() {
                 ?.joinToString("、") { CaptureDebug.appNameOf(it) }
             CaptureDebug.record(
                 pkg, "window",
-                "无障碍未抓到文本节点（对方隐藏内容或窗口不可读；可见窗口：${visible ?: "无"}）",
+                "无障碍未抓到文本节点（对方隐藏内容或窗口不可读，无法自动记录；可见窗口：${visible ?: "无"}）",
                 emptyList(),
             )
-            // 微信/支付宝对无障碍隐藏了支付页内容 → OCR 抓屏兜底（内部节流）
-            OcrEngine.maybeScan(applicationContext, pkg, s)
             return
         }
         AutoRecordPipeline.handleWindowTexts(applicationContext, pkg, texts, s)
