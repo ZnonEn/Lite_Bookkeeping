@@ -1,7 +1,5 @@
 package com.nonen.Bookkeeping.ui.screens
 
-import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,8 +13,6 @@ import com.nonen.Bookkeeping.export.BackupExporter
 import com.nonen.Bookkeeping.parse.AlipayBillParser
 import com.nonen.Bookkeeping.parse.BackupExcelParser
 import com.nonen.Bookkeeping.parse.WechatBillParser
-import com.nonen.Bookkeeping.service.OcrCaptureService
-import com.nonen.Bookkeeping.service.OcrEngine
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,10 +43,6 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         private set
     var overlayPermissionEnabled by mutableStateOf(false)
         private set
-    var ocrRunning by mutableStateOf(false)
-        private set
-    var ocrStatus by mutableStateOf("尚未运行")
-        private set
     var versionName by mutableStateOf("")
         private set
     var reclassifying by mutableStateOf(false)
@@ -80,20 +72,6 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             .getEnabledListenerPackages(container.appContext)
             .contains(container.appContext.packageName)
         overlayPermissionEnabled = android.provider.Settings.canDrawOverlays(container.appContext)
-        ocrRunning = OcrCaptureService.instance?.isReady == true
-        ocrStatus = OcrEngine.lastOutcome
-    }
-
-    fun startOcr(context: Context, resultData: Intent) {
-        context.startForegroundService(
-            Intent(context, OcrCaptureService::class.java).putExtra(OcrCaptureService.EXTRA_RESULT, resultData)
-        )
-    }
-
-    fun stopOcr(context: Context) {
-        context.stopService(Intent(context, OcrCaptureService::class.java))
-        OcrEngine.reset()
-        refreshRuntimeState()
     }
 
     fun updateAutoRecord(v: Boolean) {

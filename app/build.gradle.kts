@@ -37,7 +37,7 @@ android {
     }
 }
 
-// 显式钉住本机 JDK，防止依赖元数据（ML Kit）把工具链需求抬到 Java 25 触发联网下载
+// 显式钉住本机 JDK，避免工具链需求被依赖元数据抬高触发联网下载（本机已装 21）
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -79,7 +79,6 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.commons.csv)
-    implementation(libs.mlkit.text.recognition.chinese)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

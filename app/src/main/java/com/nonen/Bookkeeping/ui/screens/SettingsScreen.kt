@@ -1,14 +1,11 @@
 package com.nonen.Bookkeeping.ui.screens
 
-import android.app.Activity
 import android.content.Intent
-import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.provider.Settings as SystemSettings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -69,12 +66,6 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { vm.importBackup(it) }
     }
-    val projectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val data = result.data
-        if (result.resultCode == Activity.RESULT_OK && data != null) {
-            vm.startOcr(context, data)
-        }
-    }
 
     // 设置页作为 MainScreen Pager 的一页，直接输出滚动内容（底栏由 MainScreen 提供）
     Column(
@@ -92,14 +83,7 @@ fun SettingsScreen(vm: SettingsViewModel, onRules: () -> Unit) {
 
         // 自动记账是核心功能且承载授权状态提醒，默认展开
         CollapsibleSection(title = "自动记账", emoji = "⚡", initiallyExpanded = true) {
-            AutoRecordSection(
-                vm = vm,
-                onStartProjection = {
-                    context.getSystemService(MediaProjectionManager::class.java)?.let { mgr ->
-                        projectionLauncher.launch(mgr.createScreenCaptureIntent())
-                    }
-                },
-            )
+            AutoRecordSection(vm)
             CaptureDebugCard()
             SectionDivider()
             ListenScopeSection(vm)
@@ -229,12 +213,9 @@ private fun AppearanceSection(vm: SettingsViewModel) {
     }
 }
 
-/** 自动记账分组：总开关、权限引导、OCR 通道 */
+/** 自动记账分组：总开关、权限引导 */
 @Composable
-private fun AutoRecordSection(
-    vm: SettingsViewModel,
-    onStartProjection: () -> Unit,
-) {
+private fun AutoRecordSection(vm: SettingsViewModel) {
     val context = LocalContext.current
     ToggleRow(
         title = "启用自动记账",
@@ -288,35 +269,6 @@ private fun AutoRecordSection(
             onClick = { context.startActivity(Intent(SystemSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
             modifier = Modifier.padding(horizontal = 8.dp),
         ) { Text("去开启通知使用权") }
-    }
-
-    // 屏幕识别（OCR）兜底通道
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text("屏幕识别（OCR 兜底）", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                "通知没有金额且支付页面对无障碍隐藏时（如支付宝扫码），抓取屏幕文字识别金额与方向。需授权屏幕录制，重启手机后需重新授权",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                if (vm.ocrRunning) "状态：运行中 · ${vm.ocrStatus}" else "状态：未开启",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (vm.ocrRunning) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-        }
-    }
-    Row(Modifier.padding(horizontal = 8.dp)) {
-        TextButton(onClick = onStartProjection) {
-            Text(if (vm.ocrRunning) "重新授权屏幕录制" else "授权屏幕录制并开启")
-        }
-        if (vm.ocrRunning) {
-            TextButton(onClick = { vm.stopOcr(context) }) { Text("停止") }
-        }
     }
 }
 
