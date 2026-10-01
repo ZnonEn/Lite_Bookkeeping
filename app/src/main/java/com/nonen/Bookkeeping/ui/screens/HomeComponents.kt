@@ -50,6 +50,32 @@ import java.time.YearMonth
 /** 近7日单日收支（迷你柱状图数据点） */
 internal data class WeekDayBar(val date: LocalDate, val income: Double, val expense: Double)
 
+/**
+ * 「回到本月」快捷条：只在用户自己翻到了别的月份时出现。
+ * 跨月自动跳转只对「没手动翻过月」的首页生效，这条给翻走了的用户留一条一步回本月的路。
+ */
+@Composable
+internal fun BackToCurrentMonthRow(label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
 /** Apple-Card 风格总览卡：绿色渐变底 + 白色数据层级 + 月份切换胶囊 */
 @Composable
 internal fun OverviewCard(
@@ -248,10 +274,11 @@ private fun BarWithValue(v: Double, maxV: Double, color: Color) {
 @Composable
 internal fun MonthPickerDialog(
     current: YearMonth,
+    today: LocalDate,
     onSelect: (YearMonth) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val now = remember { YearMonth.now() }
+    val now = YearMonth.from(today)
     var displayYear by remember { mutableIntStateOf(current.year) }
 
     Dialog(onDismissRequest = onDismiss) {

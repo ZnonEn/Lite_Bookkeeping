@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.nonen.Bookkeeping.R
@@ -100,7 +101,12 @@ fun MainScreen(
         ) { page ->
             when (page) {
                 0 -> {
-                    val vm: HomeViewModel = viewModel(factory = vmFactory { HomeViewModel(container.transactionRepository) })
+                    // HomeViewModel 要一个 Context 来注册跨天广播；只给它 Application，
+                    // 避免 ViewModel 因为比 Activity 活得久而持有 Activity
+                    val appContext = LocalContext.current.applicationContext
+                    val vm: HomeViewModel = viewModel(
+                        factory = vmFactory { HomeViewModel(appContext, container.transactionRepository) },
+                    )
                     HomeScreen(vm = vm, onSearch = onSearch, onEdit = onEdit)
                 }
                 1 -> {

@@ -31,6 +31,8 @@
     <string name="home_month_overview">本月概览</string>
     <string name="home_recent_seven_days">近7日</string>
     <string name="home_empty">还没有账单记录</string>
+    <string name="home_empty_month">这个月还没有账单记录</string>
+    <string name="action_back_to_current_month">回到本月</string>
     <string name="cd_previous_month">上个月</string>
     <string name="cd_next_month">下个月</string>
     <string name="cd_previous_year">上一年</string>
