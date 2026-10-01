@@ -8,6 +8,7 @@
 - 手动记一笔：支出 / 收入、分类、商户、备注、自定义时间
 - 主页概览：当月收支总览、近 7 日收支迷你柱状图、按日分组流水
 - 月份快速切换：左右箭头逐月，点击月份弹出日历直接选月
+- 月份与「近 7 日」跟随真实日期：过夜、改系统时间、换时区后自动更新；跨月时没手动翻过月就自动跳到新月份，翻看过往月份时则停在该月并给出「回到本月」
 
 ### 自动记账（实验性）
 半自动模式：检测到交易时在屏幕下方弹出**悬浮确认卡片**（方向可切换，金额 / 对方 / 分类 / 时间一目了然），点「记一笔」才入库，「忽略」后同一笔不再打扰：
@@ -44,7 +45,11 @@
 
 ## 下载
 
-从 [GitHub Releases](https://github.com/ZnonEn/Lite_Bookkeeping/releases/latest) 下载最新的 APK 安装，各版本改动见 Releases 说明。
+从 [GitHub Releases](https://github.com/ZnonEn/Lite_Bookkeeping/releases/latest) 下载最新的 APK 安装。逐版本的更新日志见 [CHANGELOG.md](CHANGELOG.md)，每个版本的详细说明见对应 Releases 页面。
+
+## 更新日志
+
+各版本改动见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **v0.2.3**，修复主页不跟随日期（跨月后仍停在旧月份）。
 
 ## 隐私
 
@@ -83,7 +88,7 @@ app/src/main/java/
 ├── com/google/android/accessibility/selecttospeak/
 │                 # 无障碍服务本体（类名伪装为系统「随选朗读」，勿改）
 └── com/nonen/Bookkeeping/
-    ├── core/        # 分类体系与依据（关键词规则、平台映射、商户记忆）、哈希、xlsx 写入
+    ├── core/        # 分类体系与依据（关键词规则、平台映射、商户记忆）、日期跟随、哈希、xlsx 写入
     ├── data/
     │   ├── db/      # Room 实体、DAO 与迁移
     │   ├── prefs/   # DataStore 设置
