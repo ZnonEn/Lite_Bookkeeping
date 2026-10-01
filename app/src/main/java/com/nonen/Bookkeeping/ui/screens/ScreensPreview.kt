@@ -57,7 +57,17 @@ private fun WeekOverviewCardPreview() {
 @Composable
 private fun MonthPickerPreview() {
     BookkeepingTheme(darkTheme = true) {
-        MonthPickerDialog(current = YearMonth.now(), onSelect = {}, onDismiss = {})
+        MonthPickerDialog(current = YearMonth.now(), today = LocalDate.now(), onSelect = {}, onDismiss = {})
+    }
+}
+
+@Preview(name = "回到本月", showBackground = true, backgroundColor = 0xFF0B0B0F)
+@Composable
+private fun BackToCurrentMonthPreview() {
+    BookkeepingTheme(darkTheme = true) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            BackToCurrentMonthRow(label = "回到本月", onClick = {})
+        }
     }
 }
 
